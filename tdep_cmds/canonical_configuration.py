@@ -2,22 +2,9 @@ from typing import Optional
 import os
 import numpy as np
 
-from tdep_cmd import TDEP_Command
-
-class ExtractForceConstants(TDEP_Command):
-    pass
-
-
-class GenerateMDSamples(TDEP_Command):
-
-    # Runs samples_from_md
-    def resample_md(self):
-        pass
-
+from cmds.tdep_cmd import TDEP_Command
 
 class GenerateCanonicalConfigs(TDEP_Command):
-
-    input_files = ["infile.ucposcar", "infile.ssposcar", "infile.forceconstant"]
 
     def __init__(
             self,
@@ -31,28 +18,32 @@ class GenerateCanonicalConfigs(TDEP_Command):
         self.n_samples = n_samples
         self.tempearture = temperature
         self.maximum_frequency = maximum_frequency
+        self.log_file = log_file
 
     @property
     def input_files(self):
-        return self.input_files
+        if self.maximum_frequency is None:
+            return ["infile.ucposcar", "infile.ssposcar", "infile.forceconstant"]
+        else:
+            return ["infile.ucposcar", "infile.ssposcar"]
     
     def input_parameters_valid(self):
         if self.mode not in ["quantum", "classical"]:
             raise ValueError(f"Mode in canonical_configuration must be quantum or classical. Got : {self.mode}.")
         
-        if self.n_samples <= 0:
-            raise ValueError(f"n_samples in canonical_configuration must be greater than 0. Got : {self.n_samples}.")
+        if self.n_samples <= 0 or not isinstance(self.n_samples, int):
+            raise ValueError(f"n_samples in canonical_configuration must be an integer greater than 0. Got : {self.n_samples}.")
         
         if self.temperature <= 0:
            raise ValueError(f"temperature in canonical_configuration must be greater than 0. Got : {self.temperature}.") 
         
         return True
 
-    def __cmd(self):
-        return f"canonical_configuration -n {self.n_samples} -t {self.tempearture} > {self.log_file}"
-    
-    def run(self, ncores : int) -> int:
-        return os.system(f"mpirun -np {ncores} " + self.cmd())
+    def __cmd(self) -> str:
+        if self.maximum_frequency is None:
+            return f"canonical_configuration -n {self.n_samples} -t {self.tempearture} > {self.log_file}"
+        else:
+            return f"canonical_configuration -n {self.n_samples} -t {self.tempearture} -mf {self.maximum_frequency} > {self.log_file}"
     
     def parse_output(self):
         # `fmt` was left default so this is always VASP POSCAR
