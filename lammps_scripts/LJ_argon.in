@@ -1,0 +1,60 @@
+# This file is setup to calculate forces on a set of independent snapshots
+# LAMMPS is just being used as a force calculator and not for dynamics
+
+# Only these should be changed
+variable 	r_cut equal 8.5
+variable    structure_path string path-to-data-file
+variable    n_configs equal 1
+
+units       metal
+variable	sigma equal 3.4
+variable 	epsilon equal 0.010423
+variable i loop n_configs
+
+#Set up interatomic potential
+pair_style   lj/cut ${r_cut} # 2.5 sigma
+pair_coeff   * * ${epsilon} ${sigma}
+pair_modify  shift yes #shift potential up to y=0 to remove dis-continuity at r_cut
+
+compute 1 all temp
+compute 2 all pe
+compute 3 all ke
+compute 4 all pressure thermo_temp
+variable          st    equal step
+variable          tm    equal step
+variable          Et    equal etotal
+variable          Ep    equal pe
+variable          Ek    equal ke
+variable          tmp   equal temp
+variable          pr    equal c_4/10000
+variable          sxx   equal c_4[1]/10000
+variable          syy   equal c_4[2]/10000
+variable          szz   equal c_4[3]/10000
+variable          sxy   equal c_4[4]/10000
+variable          sxz   equal c_4[5]/10000
+variable          syz   equal c_4[6]/10000
+
+# Generate Output for All Configs
+label loop
+
+    read_data ${structure_path}_${i}
+
+    dump posdump all custom 1 dump.positions id xs ys zs 
+    dump_modify posdump format line "%d %.8f %.8f %.8f" sort id append yes
+
+    dump forcedump all custom 1 dump.forces id fx fy fz
+    dump_modify forcedump format line "%d %.8f %.8f %.8f" sort id append yes
+
+    fix statdump all print 1 "${st} ${tm} ${Et} ${Ep} ${Ek} ${tmp} ${pr} ${sxx} ${syy} ${szz} ${sxy} ${sxz} ${syz}" screen no append dump.stat
+    fix thermo_data all print 1 "${st} $(c_1:%.8f) $(c_2:%.8f) $(c_3:%.8f)" screen no append thermo_data.txt    	
+    run 0
+
+    undump posdump
+    umpdump forcedump
+    unfix statdump
+    unfix thermo_data
+
+next i
+jump SELF loop
+
+

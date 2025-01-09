@@ -1,6 +1,9 @@
 import os
 import numpy as np
 from typing import List, Optional
+import argparse
+
+from src import setup_logging
 
 def analyze_ifc_cutoffs(
         rc2s : List[float],
@@ -10,19 +13,19 @@ def analyze_ifc_cutoffs(
         n_sTDEP_configs : int = 250
     ) -> float:
     """
-    Returns cross validation parameters for the cutoff combinations passed.
+    Returns cross validation parameters for the given cutoff combinations.
 
     Parameters:
-    r_cuts : List[List[float]] : The r_cut values to try, r_cuts[0] gives the list of
-        cutoffs to try for second order and so on. Not all combinations will be tested, 
-        instead the first set tested will be rcuts[0][0], rcuts[1][0] ...
+    r_cuts : List[List[float]] : Expects all r-cut lists passed to have same 
+        length. The first set of cutoffs tested will be rc2s[0], rc3s[0], rc4s[0]
+        and so on until there are no more left.
 
     Steps:
     1. Initialize r-cut
     2. Calculate force constants via [sTDEP](#self-consistent-sampling)
     3. Parse R^2 value from cross-validation section log file for
         second
-        seonc + third
+        seoncd + third
         second + third + fourth order
     4. Repeat 2-3 for all r-cut
     5. Plot of R^2 vs r-cut, choose r-cut that converges R^2 (i.e. captures all interactions)
@@ -49,6 +52,6 @@ def analyze_ifc_cutoffs(
         
 
 
-
-def converge_ifc_nsamples():
-    pass
+if __name__ == "__main__":
+    setup_logging()
+    analyze_ifc_cutoffs()

@@ -1,8 +1,7 @@
-from typing import Optional
+from typing import Optional, List
 import numpy as np
-import os
 
-from cmds.tdep_cmd import TDEP_Command
+from src.cmds import TDEP_Command
 
 class ExtractForceConstants(TDEP_Command):
     
@@ -21,8 +20,16 @@ class ExtractForceConstants(TDEP_Command):
         self.log_file = log_file
     
     @property
-    def input_files(self):
+    def input_files(self) -> List[str]:
         return ["infile.ucposcar", "infile.ssposcar", "infile.meta", "infile.stat", "infile.positions", "infile.forces"]
+
+    def output_files(self) -> List[str]:
+        files = ["outfile.forceconstant"]
+        if self.r_cut3 is not None:
+            files.append("outfile.forceconstant_thirdorder")
+        if self.r_cut4 is not None:
+            files.append("outfile.forceconstant_fourthorder")
+        return files
 
     def input_parameters_valid(self):
 

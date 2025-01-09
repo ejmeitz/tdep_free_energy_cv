@@ -9,16 +9,15 @@ class TDEP_Command(ABC):
 
     @property
     @abstractmethod
-    def input_files() -> List[str]:
-        pass
-
-    @property
-    @abstractmethod
-    def output_files() -> List[str]:
+    def input_files(self) -> List[str]:
         pass
 
     @abstractmethod
-    def input_parameters_valid() -> bool:
+    def output_files(self, *args) -> List[str]:
+        pass
+
+    @abstractmethod
+    def input_parameters_valid(self) -> bool:
         pass
 
     @property
@@ -51,7 +50,11 @@ class TDEP_Command(ABC):
         if self.input_files_present and self.input_parameters_valid():
             return self.__cmd()
         
-    def mpirun(self, ncores : int) -> int:
-        return os.system(f"mpirun -np {ncores} " + self.cmd())
+    def mpirun(self, ncores : int, dir : str = "") -> int:
+        initial_dir = os.getcwd()
+        os.chdir(dir)
+        res = os.system(f"mpirun -np {ncores} " + self.cmd())
+        os.chdir(initial_dir)
+        return res
 
 
