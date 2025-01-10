@@ -2,57 +2,64 @@
 # LAMMPS is just being used as a force calculator and not for dynamics
 
 # Only these should be changed
-variable    structure_path string path-to-data-file
-variable    n_configs equal 1
+variable structure_path string path-to-data-file
+variable n_configs equal 1
 
 units       metal
 variable 	r_cut equal 8.5
 variable	sigma equal 3.4
 variable 	epsilon equal 0.010423
-variable i loop n_configs
+variable i loop ${n_configs}
 
-#Set up interatomic potential
-pair_style   lj/cut ${r_cut} # 2.5 sigma
-pair_coeff   * * ${epsilon} ${sigma}
-pair_modify  shift yes #shift potential up to y=0 to remove dis-continuity at r_cut
-
-compute 1 all temp
-compute 2 all pe
-compute 3 all ke
-compute 4 all pressure thermo_temp
-variable          st    equal step
-variable          tm    equal step
-variable          Et    equal etotal
-variable          Ep    equal pe
-variable          Ek    equal ke
-variable          tmp   equal temp
-variable          pr    equal c_4/10000
-variable          sxx   equal c_4[1]/10000
-variable          syy   equal c_4[2]/10000
-variable          szz   equal c_4[3]/10000
-variable          sxy   equal c_4[4]/10000
-variable          sxz   equal c_4[5]/10000
-variable          syz   equal c_4[6]/10000
 
 # Generate Output for All Configs
 label loop
 
-    read_data ${structure_path}${i} # matches output_to_lammps_input filename
+    compute 1 all temp
+    compute 2 all pe
+    compute 3 all ke
+    compute 4 all pressure thermo_temp
+
+    variable          Et    equal etotal
+    variable          Ep    equal pe
+    variable          Ek    equal ke
+    variable          tmp   equal temp
+    variable          pr    equal c_4/10000
+    variable          sxx   equal c_4[1]/10000
+    variable          syy   equal c_4[2]/10000
+    variable          szz   equal c_4[3]/10000
+    variable          sxy   equal c_4[4]/10000
+    variable          sxz   equal c_4[5]/10000
+    variable          syz   equal c_4[6]/10000
+
+    read_data ${structure_path}${i}.lmp # matches output_to_lammps_input filename
+
+    #Set up interatomic potential
+    pair_style   lj/cut ${r_cut} # 2.5 sigma
+    pair_coeff   * * ${epsilon} ${sigma}
+    pair_modify  shift yes
+
 
     dump posdump all custom 1 dump.positions id xs ys zs 
-    dump_modify posdump format line "%d %.8f %.8f %.8f" sort id append yes
+    dump_modify posdump format line "%d %.10f %.10f %.10f" sort id append yes
 
     dump forcedump all custom 1 dump.forces id fx fy fz
-    dump_modify forcedump format line "%d %.8f %.8f %.8f" sort id append yes
+    dump_modify forcedump format line "%d %.10f %.10f %.10f" sort id append yes
 
-    fix statdump all print 1 "${st} ${tm} ${Et} ${Ep} ${Ek} ${tmp} ${pr} ${sxx} ${syy} ${szz} ${sxy} ${sxz} ${syz}" screen no append dump.stat
-    fix thermo_data all print 1 "${st} $(c_1:%.8f) $(c_2:%.8f) $(c_3:%.8f)" screen no append thermo_data.txt    	
+    fix statdump all print 1 "${i} ${i} ${Et} ${Ep} ${Ek} ${tmp} ${pr} ${sxx} ${syy} ${szz} ${sxy} ${sxz} ${syz}" screen no title "" append dump.stat
+    fix thermo_data all print 1 "${i} $(c_1:%.10f) $(c_2:%.10f) $(c_3:%.10f)" screen no title "" append thermo_data.txt    	
     run 0
 
     undump posdump
-    umpdump forcedump
+    undump forcedump
     unfix statdump
     unfix thermo_data
+    uncompute 1
+    uncompute 2
+    uncompute 3
+    uncompute 4
+
+    clear # resets atoms and potential
 
 next i
 jump SELF loop

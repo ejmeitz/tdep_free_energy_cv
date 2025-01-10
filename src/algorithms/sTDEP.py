@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 import os, shutil
+from os.path import join
 
 from src import (
     PathLike,
@@ -23,46 +24,38 @@ class sTDEP_Params:
     force_calc : str = "lammps"
     lammps_base_script : Optional[str] = None #(e.g. LJ_argon.in)
 
+def run_init_iteration(p : sTDEP_Params, current_dir : PathLike, run_dir : PathLike):
 
-def calc_forces_lammps():
-    pass
+    os.makedirs(run_dir)
+    shutil.copyfile(join(current_dir, "infile.ssposcar"), join(run_dir, "infile.ssposcar"))
+    shutil.copyfile(join(current_dir, "infile.ucposcar"), join(run_dir, "infile.ucposcar"))
 
-def calc_forces_vasp():
-    pass
-
-def run_init_iteration(p : sTDEP_Params, outpath : PathLike):
-
-    cc = CanonicalConfigs(p.mode, p.n_configs, p.temperature, maximum_frequency = p.max_freq)
-    res = cc.mpirun(p.ncores, outpath)
+    cc = CanonicalConfigs(p.mode, p.n_configs, p.temperature, maximum_frequency = p.maximum_frequency)
+    res = cc.mpirun(p.ncores, run_dir)
 
     if res != 0:
         logging.error("Possible error in first iteration of sTDEP")
 
-def make_dos_plot():
-    pass
-
-
-def prepare_next_dir(dest_dir, init_pass : bool = False):
+def prepare_next_dir(current_dir, dest_dir, init_pass : bool = False):
     os.mkdir(dest_dir)
-    shutil.copyfile("infile.ssposcar", os.path.join(dest_dir, "infile.ssposcar"))
-    shutil.copyfile("infile.ucposcar", os.path.join(dest_dir, "infile.ucposcar"))
+    shutil.copyfile(join(current_dir, "infile.ssposcar"), join(dest_dir, "infile.ssposcar"))
+    shutil.copyfile(join(current_dir, "infile.ucposcar"), join(dest_dir, "infile.ucposcar"))
     if not init_pass:
-        shutil.copyfile("outfile.forceconstant", os.path.join(dest_dir, "infile.forceconstant"))
+        shutil.copyfile(join(current_dir, "outfile.forceconstant"), join(dest_dir, "infile.forceconstant"))
     else:
-        shutil.copyfile("outfile.fakeforceconstant", os.path.join(dest_dir, "infile.forceconstant"))
+        shutil.copyfile(join(current_dir, "outfile.fakeforceconstant"), join(dest_dir, "infile.forceconstant"))
 
 def run_stdep(p : sTDEP_Params):
 
-    iter_path = lambda i : os.path.join(p.basepath, f"cc_iter_$(i)")
+    iter_path = lambda i : join(p.basepath, f"stdep_iter_{i}")
     
     # Generate force constants from maximum frequency
     # These will seed the self-consistent iteration
-    run_init_iteration(p, iter_path("init"), use_max_freq = True)
+    init_iter_path = iter_path("init")
+    run_init_iteration(p, p. basepath, iter_path("init"))
 
     # Seed first iteration
-    first_iter_path = iter_path(0)
-    prepare_next_dir(first_iter_path)
-    shutil.copyfile("outfile.fakeforceconstant", os.path.join(first_iter_path, "infile.forceconstant"))
+    prepare_next_dir(init_iter_path, iter_path(0), True)
 
     # Pre-calc stuff needed for force calculators
     if p.force_calc == "lammps":
@@ -76,32 +69,33 @@ def run_stdep(p : sTDEP_Params):
 
     cc = CanonicalConfigs(p.mode, p.n_configs, p.temperature)
     for i in range(p.iters):
+        ip = iter_path(i)
         
         # Generate configurations
-        res = cc.mpirun(p.ncores, iter_path(i))
+        res = cc.mpirun(p.ncores, ip)
 
         if res != 0:
             logging.error(f"Possible error in iteration {i} of sTDEP")
 
         # Calculate forces on configurations
         if p.force_calc == "lammps":
-            cc.output_to_lammps_input(dir = iter_path(i))
+            cc.output_to_lammps_input(ip)
             lc = LammpsCalculator(base_infile_path,
-                                  iter_path(i),
+                                  ip,
                                   "contcar_conf",
                                   p.n_configs)
             lc.run()
-            lc.remove_dump_headers(iter_path(i)) # makes infile.positions, infile.stat, infile.forces
+            lc.remove_dump_headers(ip) # makes infile.positions, infile.stat, infile.forces
         else:
             raise NotImplementedError("VASP Force calc not implemented")
 
 
         ef = ExtractForceConstants(p.r_cut2)
-        ef.mpirun(p.ncores, iter_path(i))
+        ef.mpirun(p.ncores, ip)
 
 
         # make_dos_plot()
-        prepare_next_dir(iter_path(i+1))
+        prepare_next_dir(ip, iter_path(i+1))
 
     # Using Last Dataset fit third, fourth order IFCs
 

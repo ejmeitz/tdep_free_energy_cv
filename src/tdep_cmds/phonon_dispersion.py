@@ -12,12 +12,14 @@ class PhononDispersion(TDEP_Command):
             q_grid : List[int],
             dos : bool = True,
             gruneisen : bool = False,
-            unit = "thz"
+            unit = "thz",
+            log_file : str = "phonon_disp.log"
         ):
         self.q_grid = q_grid
         self.dos = dos
         self.gruneisen = gruneisen
         self.unit = unit
+        self.log_file = log_file
 
 
     @property
@@ -47,7 +49,7 @@ class PhononDispersion(TDEP_Command):
         
         return True
 
-    def __cmd(self) -> str:
+    def _cmd(self) -> str:
         cmd = f"phonon_dispersion_relations -qg {self.q_grid[0]} {self.q_grid[1]} {self.q_grid[2]}"
         if self.dos:
             cmd += " --dos"
@@ -55,7 +57,7 @@ class PhononDispersion(TDEP_Command):
         if self.gruneisen:
             cmd += " --gruneisen"
 
-        return cmd
+        return cmd + f" > {self.log_file}"
 
     def plot_dos(self, basepath : PathLike = os.getcwd(), outpath : PathLike = os.getcwd()):
         pass

@@ -48,11 +48,13 @@ class InFile():
                     if value.replace('.', '', 1).isdigit():
                         if mode == "equal":
                             self.free_variables[var] = float(value)
-                        elif mode == "string":
-                            self.free_variables[var] = value
                         else:
                             raise RuntimeError(f"Error parsing LAMMPS infile, got unknown mode : {mode}")
                         
+                        self.free_variable_modes[var] = mode
+                        self.free_variable_line_numbers[var] = line_number
+                    if mode == "string":
+                        self.free_variables[var] = value
                         self.free_variable_modes[var] = mode
                         self.free_variable_line_numbers[var] = line_number
 
@@ -99,7 +101,7 @@ class LammpsCalculator:
         self.run_dir = run_dir
 
         # Copy infile to run dir
-        base_infile_name = self.base_infile_path.basename()
+        base_infile_name = os.path.basename(self.base_infile_path)
         self.new_infile_path = os.path.join(run_dir, base_infile_name)
         shutil.copyfile(self.base_infile_path, self.new_infile_path)
 
@@ -111,7 +113,7 @@ class LammpsCalculator:
     def run(self) -> int:
         return os.system(f"lmp < {self.new_infile_path}")
     
-    def remove_dump_headers(simulation_folder):
+    def remove_dump_headers(self, simulation_folder):
         bash_script = f""" #!/bin/bash
 
             # figure out how many atoms there are

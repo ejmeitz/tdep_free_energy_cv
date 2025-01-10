@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import logging
 from typing import List
 from pathlib import Path
 import os
@@ -22,7 +23,7 @@ class TDEP_Command(ABC):
 
     @property
     @abstractmethod
-    def __cmd(self) -> str:
+    def _cmd(self) -> str:
         """
         Builds command that could be called in shell. This method
         is private in favor of the `cmd` function which also runs
@@ -41,19 +42,29 @@ class TDEP_Command(ABC):
         required_files = cls.input_files()
         return all((dir / file).exists() for file in required_files)
     
-    def cmd(self, ncores, launcher = "mpirun"):
+    def cmd(self):
         """
         Checks if all reuqired input files are present and
         that the parameters passed to the cmd are valid. If so
         the command to run the program is generated and returned.
         """
         if self.input_files_present and self.input_parameters_valid():
-            return self.__cmd()
+            return self._cmd()
         
-    def mpirun(self, ncores : int, dir : str = "") -> int:
+    def mpirun(self, ncores : int, run_dir : PathLike = os.getcwd()) -> int:
         initial_dir = os.getcwd()
-        os.chdir(dir)
-        res = os.system(f"mpirun -np {ncores} " + self.cmd())
+        os.chdir(run_dir)
+        c = f"mpirun -np {ncores} " + self.cmd()
+        logging.info(f"Running: {c} in {run_dir}")
+        res = os.system(c)
+        os.chdir(initial_dir)
+        return res
+    
+    def run(self, run_dir : PathLike = os.getcwd()) -> int:
+        initial_dir = os.getcwd()
+        os.chdir(run_dir)
+        logging.info(f"Running: {self.cmd()} in {run_dir}")
+        res = os.system(self.cmd())
         os.chdir(initial_dir)
         return res
 

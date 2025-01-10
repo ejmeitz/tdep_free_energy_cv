@@ -11,7 +11,7 @@ class ExtractForceConstants(TDEP_Command):
             r_cut3 : Optional[float] = None,
             r_cut4 : Optional[float] = None,
             stride : Optional[int] = 1,
-            log_file : str = "tdep.log"
+            log_file : str = "extract_ifcs.log"
         ):
         self.r_cut2 = r_cut2
         self.r_cut3 = r_cut3
@@ -42,7 +42,7 @@ class ExtractForceConstants(TDEP_Command):
         
         return True
 
-    def __cmd(self) -> str:
+    def _cmd(self) -> str:
         cmd = f"extract_forceconstants -s {self.stride} -rc2 {self.r_cut2}"
 
         if self.r_cut3 is not None:
