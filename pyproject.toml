@@ -1,0 +1,48 @@
+#https://github.com/pypa/sampleproject/blob/main/pyproject.toml
+
+[build-system]
+requires = ["setuptools"]  # REQUIRED if [build-system] table is used
+build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior can happen.
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "scripts"]
+
+[project]
+name = "tdep_cv_free_eneergy" 
+version = "0.0.1"
+description = "Calculates heat capacity from anharmonic free energy"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE.txt"}
+
+keywords = ["Free Energy", "Heat Capacity"]
+
+authors = [
+  {name = "Ethan Meitz", email = "emeitz@andrew.cmu.edu" }
+]
+
+maintainers = [
+  {name = "Ethan Meitz", email = "emeitz@andrew.cmu.edu" }
+]
+
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+]
+
+
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+
+# <NAME CALLED ON CLI> = "<MODULE_NAME>:<FUNCTION_NAME_CALLED>"
+[project.scripts]
+sTDEP = "scripts.sTDEP:main"

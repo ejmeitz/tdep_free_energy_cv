@@ -1,7 +1,7 @@
 from typing import Optional, List
 import numpy as np
 
-from src.cmds import TDEP_Command
+from .tdep_cmd import TDEP_Command
 
 class ExtractForceConstants(TDEP_Command):
     

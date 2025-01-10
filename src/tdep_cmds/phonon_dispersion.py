@@ -2,7 +2,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import os
 
-from src.cmds import TDEP_Command
+from .tdep_cmd import TDEP_Command
 from src import PathLike
 
 class PhononDispersion(TDEP_Command):

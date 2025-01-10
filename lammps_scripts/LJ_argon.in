@@ -2,11 +2,11 @@
 # LAMMPS is just being used as a force calculator and not for dynamics
 
 # Only these should be changed
-variable 	r_cut equal 8.5
 variable    structure_path string path-to-data-file
 variable    n_configs equal 1
 
 units       metal
+variable 	r_cut equal 8.5
 variable	sigma equal 3.4
 variable 	epsilon equal 0.010423
 variable i loop n_configs
@@ -37,7 +37,7 @@ variable          syz   equal c_4[6]/10000
 # Generate Output for All Configs
 label loop
 
-    read_data ${structure_path}_${i}
+    read_data ${structure_path}${i} # matches output_to_lammps_input filename
 
     dump posdump all custom 1 dump.positions id xs ys zs 
     dump_modify posdump format line "%d %.8f %.8f %.8f" sort id append yes

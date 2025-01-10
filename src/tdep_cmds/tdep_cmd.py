@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List
 from pathlib import Path
 import os
 
-PathLike = Union[Path, str]
+from src import PathLike
 
 class TDEP_Command(ABC):
 

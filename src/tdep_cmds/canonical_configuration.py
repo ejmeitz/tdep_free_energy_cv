@@ -4,7 +4,7 @@ import glob
 import logging
 import numpy as np
 
-from cmds.tdep_cmd import TDEP_Command
+from .tdep_cmd import TDEP_Command
 from src import PathLike
 
 class CanonicalConfigs(TDEP_Command):
@@ -54,12 +54,6 @@ class CanonicalConfigs(TDEP_Command):
         else:
             return f"canonical_configuration -n {self.n_samples} -t {self.tempearture} -mf {self.maximum_frequency} > {self.log_file}"
     
-    def parse_output(self):
-        # `fmt` was left default so this is always VASP POSCAR
-        # Return np arrays of positions and velocities??
-        # use atomsk? call fn in util.py
-        pass
-
     def __parse_poscar_velos(self, poscar_path, out_units : str = "METAL"):
 
         if out_units != "METAL":
@@ -87,8 +81,8 @@ class CanonicalConfigs(TDEP_Command):
         lammps_files = []
 
         res = 0
-        for file in poscar_files:
-            res |= os.system(f"atomsk {file} lammps")
+        for i, file in enumerate(poscar_files):
+            res |= os.system(f"atomsk {file} lammps contcar_conf{i}.lmp")
             output_file = file + ".lmp" # output of canonical config has no ext to remove
             lammps_files.append(output_file)
 

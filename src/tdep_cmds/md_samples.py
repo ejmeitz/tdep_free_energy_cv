@@ -1,4 +1,4 @@
-from cmds.tdep_cmd import TDEP_Command
+from .tdep_cmd import TDEP_Command
 
 
 class GenerateMDSamples(TDEP_Command):
