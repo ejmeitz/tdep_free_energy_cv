@@ -37,7 +37,7 @@ class ExtractForceConstants(TDEP_Command):
             raise ValueError(f"stride in extract_forceconstants must be an integer greater than 0. Got : {self.stride}.")
         
         rcs = {"rc2" : self.r_cut2, "rc3" : self.r_cut3, "rc4" : self.r_cut4}
-        if np.any([rc for rc in rcs.values() if rc is not None] < 0.0):
+        if np.any([rc < 0.0 for rc in rcs.values() if rc is not None]):
             raise ValueError(f"Force constant cutoffs in extract_forceconstants must be positive. Got : {rcs}")
         
         return True
@@ -51,6 +51,6 @@ class ExtractForceConstants(TDEP_Command):
         if self.r_cut4 is not None:
             cmd += f" -rc4 {self.r_cut4}"
 
-        cmd += f"--potential_energy_differences --verbose > {self.log_file}"
+        cmd += f" --potential_energy_differences --verbose > {self.log_file}"
 
         return cmd

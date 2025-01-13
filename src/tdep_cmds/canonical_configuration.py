@@ -76,23 +76,27 @@ class CanonicalConfigs(TDEP_Command):
         if len(velocities) != N_atoms:
             raise RuntimeError(f"Error parsing velocities from POSCAR. Got {len(velocities)} entries but expected {N_atoms}.")
 
-        return 10 * np.array(velocities) # POSCAR is Ang / fs, LAMMPS metal is Ang / ps
+        return 1000 * np.array(velocities) # POSCAR is Ang / fs, LAMMPS metal is Ang / ps
 
-    def output_to_lammps_input(self, dir) -> None:
+    def output_to_lammps_input(self, dir) -> int:
         os.chdir(dir)
         poscar_files = self.output_files(dir)
 
         res = 0
+        N_atoms = None
         for i, file in enumerate(poscar_files):
             res |= os.system(f"atomsk {file} lammps contcar_conf{i+1}.lmp > /dev/null")
             output_file = os.path.join(dir, f"contcar_conf{i+1}.lmp") # output of canonical config has no ext to remove
 
             # Append velocities to end of lammps file
             velos = self.__parse_poscar_velos(file)
+            N_atoms = len(velos)
             with open(output_file, "a") as f:
                 f.write("\nVelocities\n\n")
                 f.writelines(f"{i+1} {v[0]} {v[1]} {v[2]}\n" for i,v in enumerate(velos))
 
         if res != 0:
             logging.error("Possible error using atomsk to convert VASP POSCAR to LAMMPS format")
+        
+        return N_atoms
 

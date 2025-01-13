@@ -39,11 +39,12 @@ def main():
     if args.num_unit_cells is None and not os.path.isfile(os.path.join(args.basepath, "infile.ssposcar")):
         raise RuntimeError(f"num_unit_cells not passed, expected infile.ssposcar in {args.basepath}")
     elif args.num_unit_cells is not None:
+        logging.info("Generating {args.num_unit_cells}x{args.num_unit_cells}x{args.num_unit_cells} supercell ")
         gc = GenerateStructure([args.num_unit_cells, args.num_unit_cells, args.num_unit_cells])
         res = gc.run(args.basepath)
         if res != 0:
             logging.error("Possible error running generate_structure")
-        shutil.copyfile("outfile.ssposcar", "infile.ssposcar")
+        shutil.copyfile("outfile.ssposcar", "infile.ssposcar")        
 
     stdep_args = {k:v for k,v in vars(args).items() if k in sTDEP_Params.__annotations__}
     params = sTDEP_Params(**stdep_args)
@@ -54,4 +55,4 @@ if __name__ == "__main__":
 
 
 
-# sTDEP --iters 3 --n_configs 25 --temperature 50 --mode "classical" --maximum_frequency 2.0 --basepath "/home/emeitz/tests/tdep_outputs/sTDEP_TEST" --r_cut2 8.5 --lammps_base_script "LJ_argon.in" --num_unit_cells 4 --ncores 4
+# sTDEP --iters 2 --n_configs 200 --temperature 50 --mode "classical" --maximum_frequency 2.0 --basepath "/home/emeitz/tests/tdep_outputs/sTDEP_TEST" --r_cut2 8.5 --lammps_base_script "LJ_argon.in" --ncores 4

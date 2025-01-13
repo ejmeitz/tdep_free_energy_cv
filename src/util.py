@@ -15,3 +15,11 @@ def setup_logging(logname : str, savepath : PathLike = os.getcwd()):
         ]
     )
     logging.info("Logger initialized")
+
+
+def write_tdep_meta(out_dir : PathLike, N_atoms : int, N_samples : int, dt_fs : float, temperature : float):
+    with open(os.path.join(out_dir, "infile.meta"), "w") as f:
+        f.write(f"{N_atoms} # N atoms\n")
+        f.write(f"{N_samples} # N samples\n")
+        f.write(f"{dt_fs} # timestep in fs\n")
+        f.write(f"{temperature} # temperature in K")

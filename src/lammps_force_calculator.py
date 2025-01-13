@@ -110,8 +110,9 @@ class LammpsCalculator:
         self.infile.edit_variables({structure_key : os.path.join(run_dir, structure_pattern),
                                     config_key : n_configs})
 
-    def run(self) -> int:
-        return os.system(f"lmp < {self.new_infile_path}")
+    def run(self, dir) -> int:
+        os.chdir(dir)
+        return os.system(f"lmp -in {self.new_infile_path} -screen lmp.screen")
     
     def remove_dump_headers(self, simulation_folder):
         bash_script = f""" #!/bin/bash

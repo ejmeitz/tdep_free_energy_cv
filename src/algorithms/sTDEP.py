@@ -8,7 +8,8 @@ from src import (
     PathLike,
     LammpsCalculator,
     CanonicalConfigs,
-    ExtractForceConstants
+    ExtractForceConstants, 
+    write_tdep_meta
 )
 
 @dataclass
@@ -31,7 +32,7 @@ def run_init_iteration(p : sTDEP_Params, current_dir : PathLike, run_dir : PathL
     shutil.copyfile(join(current_dir, "infile.ucposcar"), join(run_dir, "infile.ucposcar"))
 
     cc = CanonicalConfigs(p.mode, p.n_configs, p.temperature, maximum_frequency = p.maximum_frequency)
-    res = cc.mpirun(p.ncores, run_dir)
+    res = cc.run(run_dir)
 
     if res != 0:
         logging.error("Possible error in first iteration of sTDEP")
@@ -72,20 +73,21 @@ def run_stdep(p : sTDEP_Params):
         ip = iter_path(i)
         
         # Generate configurations
-        res = cc.mpirun(p.ncores, ip)
+        res = cc.run(ip)
 
         if res != 0:
             logging.error(f"Possible error in iteration {i} of sTDEP")
 
         # Calculate forces on configurations
         if p.force_calc == "lammps":
-            cc.output_to_lammps_input(ip)
+            N_atoms = cc.output_to_lammps_input(ip)
             lc = LammpsCalculator(base_infile_path,
                                   ip,
                                   "contcar_conf",
                                   p.n_configs)
-            lc.run()
+            lc.run(ip)
             lc.remove_dump_headers(ip) # makes infile.positions, infile.stat, infile.forces
+            write_tdep_meta(ip, N_atoms, p.n_configs, 0.0, p.temperature)
         else:
             raise NotImplementedError("VASP Force calc not implemented")
 
@@ -95,7 +97,8 @@ def run_stdep(p : sTDEP_Params):
 
 
         # make_dos_plot()
-        prepare_next_dir(ip, iter_path(i+1))
+        if i < p.iters - 1:
+            prepare_next_dir(ip, iter_path(i+1))
 
     # Using Last Dataset fit third, fourth order IFCs
 
