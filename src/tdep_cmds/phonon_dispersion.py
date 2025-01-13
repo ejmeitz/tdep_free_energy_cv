@@ -1,6 +1,8 @@
 from typing import List
+import numpy as np
 import matplotlib.pyplot as plt
 import os
+import h5py
 
 from .tdep_cmd import TDEP_Command
 from src import PathLike
@@ -58,12 +60,44 @@ class PhononDispersion(TDEP_Command):
             cmd += " --gruneisen"
 
         return cmd + f" > {self.log_file}"
+    
+    def __unit_to_plot_label(self):
+        if self.unit == "thz":
+            return "THz"
+        elif self.unit == "mev":
+            return "meV"
+        elif self.unit == "icm":
+            return "cm^-1"
+        return "unknown-unit"
 
     def plot_dos(self, basepath : PathLike = os.getcwd(), outpath : PathLike = os.getcwd()):
-        pass
+        dos_data = np.loadtxt(os.path.join(basepath, "outfile.phonon_dos"))
+        plt.plot(dos_data[:,0], dos_data[:,1], lw = 2.5, color = "#21deb2");
+        plt.xlabel(f"Frequency [{self.__unit_to_plot_label()}]");
+        plt.ylabel(f"DOS [1/{self.__unit_to_plot_label()}]");
+        plt.savefig(os.path.join(outpath, "DOS.png"));
+        plt.close();
 
     def plot_dispersion(self, basepath : PathLike = os.getcwd(), outpath : PathLike = os.getcwd()):
-        pass
+        filepath = os.path.join(basepath, "outfile.dispersion_relations.hdf5")
+        with h5py.File(filepath, 'r') as f:
+            x = f['/q_values'][:]
+            xtck = f['/q_ticks'][:]
+            # xtckl = f.attrs['/q_tick_labels'].decode().split()  # Decode and split into list
+            y = f['/frequencies'][:]
+
+        # Plot data
+        plt.figure(1)
+        plt.clf()
+        plt.plot(x, y, color = "#21deb2", lw = 2)
+
+        # Configure plot
+        # plt.xticks(xtck, xtckl)
+        plt.gca().tick_params(axis='y', which='both', direction='in')  # For y minor ticks
+        plt.ylabel(f"Frequency [{self.__unit_to_plot_label()}]");
+        plt.xlim([0, max(x)])
+        plt.savefig(os.path.join(outpath, "DISPERSION.png"));
+        plt.close();
 
     def plot_gruneisen(self, basepath : PathLike = os.getcwd(), outpath : PathLike = os.getcwd()):
         pass
