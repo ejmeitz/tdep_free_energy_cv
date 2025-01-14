@@ -1,18 +1,19 @@
-basepath : ""
+basepath : "/home/emeitz/tests/TDEP_free_energy/interp_test/lib_test"
+ucposcar_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/LJ/infile.ucposcar_oneatom"
+ssposcar_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/LJ/infile.ssposcar"
 temps_to_calculate : [75,80,85]
 temps_to_interpolate : [79.5, 79.75, 80, 80.25, 80.5]
 rc2 : 8.5
-rc3 : 8.5
-rc4 : 4.0
+#rc3 : 5.0
+#rc4 : 2.0
 n_cores : 40
 force_calc : "lammps"
-lammps_base_script : "LJ_argon_dynamics.in"
-lammps_init_structure : "initial_structure_LJ.data"
 lds :
     time_step_fs : 2.0 
     n_atoms : 256
     script_name : "LJ_argon_dynamics.in"
-    structure_path : "/home/emeitz/initial_structure_LJ.data"
+    structure_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/LJ/initial_structure_LJ.data"
     n_cores : 4
     data_interval : 5000
-    n_configs : 500
+    n_configs : 50
+

@@ -3,7 +3,7 @@ import logging
 import os, shutil
 from os.path import join
 from typing import List, Optional
-from dataclasses import dataclass, field,
+from dataclasses import dataclass, field
 
 from src import (
     ExtractForceConstants,
@@ -43,7 +43,7 @@ class InterpolateIFCParams:
 
 def run_lammps(p, T, base_infile_path, sim_root_dir):
     N_steps = p.lds.n_configs * p.lds.data_interval
-    var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.structure_path}
+    var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.lds.structure_path}
     ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict)
 
     ls.mpirun(sim_root_dir, p.lds.n_cores)
@@ -94,7 +94,8 @@ def run_interpolate_irred(p : InterpolateIFCParams):
 
     ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4)
 
-    sim_dir = os.mkdir(join(p.basepath, "simulation_data"))
+    sim_dir = join(p.basepath, "simulation_data")
+    os.mkdir(sim_dir)
 
     mean_sim_temps = []
     irred2_ifcs = []
@@ -104,7 +105,14 @@ def run_interpolate_irred(p : InterpolateIFCParams):
         sim_root_dir = join(sim_dir, f"T{T}")
         os.mkdir(sim_root_dir)
 
+        # Move files needed for extract IFCs
+        shutil.copyfile(join(p.basepath, "infile.ucposcar"), 
+                        join(sim_root_dir, "infile.ucposcar"))
+        shutil.copyfile(join(p.basepath, "infile.ssposcar"), 
+                        join(sim_root_dir, "infile.ssposcar"))
+
         if p.force_calc == "lammps":
+            logging.info(f"Running LAMMPS at {T} K")
             mean_sim_temp = run_lammps(p, T, base_infile_path, sim_root_dir)
             mean_sim_temps.append(mean_sim_temp)
         else:
@@ -116,48 +124,60 @@ def run_interpolate_irred(p : InterpolateIFCParams):
             logging.error(f"Possible error when extracting IFCs")
 
         # Store irred ifcs
-        tmp = np.loadtxt(join(sim_root_dir, f"infile.irrifc_secondorder"))
+        tmp = np.loadtxt(join(sim_root_dir, f"outfile.irrifc_secondorder"))
         irred2_ifcs.append(tmp)
 
         if p.rc3 is not None:
-            tmp = np.loadtxt(join(sim_root_dir, f"infile.irrifc_thirdorder"))
+            tmp = np.loadtxt(join(sim_root_dir, f"outfile.irrifc_thirdorder"))
             irred3_ifcs.append(tmp)
         
         if p.rc4 is not None:
-            tmp = np.loadtxt(join(sim_root_dir, f"infile.irrifc_fourthorder"))
+            tmp = np.loadtxt(join(sim_root_dir, f"outfile.irrifc_fourthorder"))
             irred4_ifcs.append(tmp)
 
     # Save actual temps to see if our IFCs are accurate
     if p.force_calc == "lammps":       
         write_temps_file(p.basepath, TEMPS_CALC, mean_sim_temps)
+        logging.info("Using mean simulation temperatures for interpolation.")
 
     # Interpolate the irreducible IFCs
     irred2_ifcs = np.array(irred2_ifcs)
     new_irred2_ifcs = np.zeros((irred2_ifcs.shape[1], len(TEMPS_INTERP)))
     for i in range(irred2_ifcs.shape[1]):
-        new_irred2_ifcs[i,:] = np.interp(TEMPS_INTERP, TEMPS_CALC, irred2_ifcs[:,i])
+        new_irred2_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred2_ifcs[:,i])
 
     if p.rc3 is not None:
         irred3_ifcs = np.array(irred3_ifcs)
         new_irred3_ifcs = np.zeros((irred3_ifcs.shape[1], len(TEMPS_INTERP)))
         for i in range(irred2_ifcs.shape[1]):
-            new_irred3_ifcs[i,:] = np.interp(TEMPS_INTERP, TEMPS_CALC, irred3_ifcs[:,i])
+            new_irred3_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred3_ifcs[:,i])
 
     if p.rc4 is not None:
         irred4_ifcs = np.array(irred4_ifcs)
         new_irred4_ifcs = np.zeros((irred4_ifcs.shape[1], len(TEMPS_INTERP)))
         for i in range(irred2_ifcs.shape[1]):
-            new_irred4_ifcs[i,:] = np.interp(TEMPS_INTERP, TEMPS_CALC, irred4_ifcs[:,i])
+            new_irred4_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred4_ifcs[:,i])
 
     # Save interpolated IFCs per tempearture
     for j, T in enumerate(TEMPS_INTERP):
-        np.savetxt(join(p.basepath, f"infile.irrifc_secondorder_{T.replace(".", "_")}"), new_irred2_ifcs[:,j])
+        temp_str = f"{T}".replace('.', '_')
+        np.savetxt(join(p.basepath, f"infile.irrifc_secondorder_{temp_str}"), new_irred2_ifcs[:,j])
 
         if p.rc3 is not None:
-            np.savetxt(join(p.basepath, f"infile.irrifc_thirdorder_{T.replace(".", "_")}"), new_irred3_ifcs[:,j])
+            np.savetxt(join(p.basepath, f"infile.irrifc_thirdorder_{temp_str}"), new_irred3_ifcs[:,j])
 
         if p.rc4 is not None:
-            np.savetxt(join(p.basepath, f"infile.irrifc_fourthorder_{T.replace(".", "_")}"), new_irred4_ifcs[:,j])
+            np.savetxt(join(p.basepath, f"infile.irrifc_fourthorder_{temp_str}"), new_irred4_ifcs[:,j])
+
+
+    # WRITE EXTRACT IFC COMMAND USED 
+    # THIS MUST BE THE SAME WHEN USING 
+    # THE IRRED IFC CREATED HERE
+    with open(join(p.basepath, "READ_IRRED_IFC_CMD.txt"), "w") as f:
+        f.write("# YOU MUST USE THIS COMMAND WHEN USING THE INTERPOLATED IFCS.\n \
+                THE PARAMS MUST MATCH THOSE USED TO CREATE THE INTERPOLATION POINTS.\n \
+                THE infile.ucposcar AND infile.ssposcar MUST ALSO BE IDENTICAL.\n")
+        f.write(ef._cmd(extra_flags = ["readirreducible"]))
     
 
 

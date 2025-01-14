@@ -42,7 +42,7 @@ class ExtractForceConstants(TDEP_Command):
         
         return True
 
-    def _cmd(self) -> str:
+    def _cmd(self, *, extra_flags : List[str] = None) -> str:
         cmd = f"extract_forceconstants -s {self.stride} -rc2 {self.r_cut2}"
 
         if self.r_cut3 is not None:
@@ -51,6 +51,11 @@ class ExtractForceConstants(TDEP_Command):
         if self.r_cut4 is not None:
             cmd += f" -rc4 {self.r_cut4}"
 
+        if extra_flags is not None:
+            for ef in extra_flags:
+                cmd += f" --{ef}"
+        
         cmd += f" --potential_energy_differences --verbose > {self.log_file}"
+        
 
         return cmd
