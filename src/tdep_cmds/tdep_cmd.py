@@ -48,7 +48,7 @@ class TDEP_Command(ABC):
         that the parameters passed to the cmd are valid. If so
         the command to run the program is generated and returned.
         """
-        if self.input_files_present and self.input_parameters_valid():
+        if self.input_files_present() and self.input_parameters_valid():
             return self._cmd()
         
     def mpirun(self, ncores : int, run_dir : PathLike = os.getcwd()) -> int:
