@@ -1,6 +1,43 @@
 import os, shutil
+from abc import ABC, abstractmethod
 
 from .util import PathLike
+
+def remove_dump_headers(simulation_folder):
+        bash_script = f""" #!/bin/bash
+
+            # figure out how many atoms there are
+            na=`head -n 4 dump.forces | tail -n 1`
+            # remove the header from the stat file
+            grep -v '^#' dump.stat > ./infile.stat
+            # figure out how many timesteps there are
+            nt=`wc -l ./infile.stat"""
+        
+        bash_script_end = """| awk '{print $1}'`
+        
+            # create the positions and force files
+            [ -f infile.forces ] && rm infile.forces
+            [ -f infile.positions ] && rm infile.positions
+            for t in `seq 1 ${nt}`
+            do
+                nl=$(( ${na}+9))
+                nll=$(( ${nl}*${t} ))
+                echo "t ${t} ${nl} ${nll}"
+                head -n ${nll} dump.forces | tail -n ${na} >> infile.forces
+                head -n ${nll} dump.positions | tail -n ${na} >> infile.positions
+            done
+        """
+
+        bash_script += bash_script_end
+
+        bash_file = os.path.join(simulation_folder, "remove_dump_headers")
+        with open(bash_file, "w") as f:
+            f.write(bash_script)
+        
+        os.chdir(simulation_folder)
+        os.system(f"chmod u+x {bash_file}")
+        os.system(f"{bash_file}")
+
 
 
 class InFile():
@@ -84,20 +121,16 @@ class InFile():
         with open(self.path,'w') as in_file:
             in_file.writelines(lines)
 
-class LammpsCalculator:
-
+# All of these could easily be combined into one that just takes a dict 
+# with the keys and values as a param.
+class LammpsSimulator:
     def __init__(
             self,
             base_infile_path : PathLike,
             run_dir : PathLike,
-            structure_pattern : str, # expects filename w/ numbers removed (e.g. contcar_conf)
-            n_configs : int,
-            *,
-            structure_key : str = "structure_path",
-            config_key : str = "n_configs"
+            edited_variables_dict : dict
         ):
         self.base_infile_path = base_infile_path
-        self.structure_pattern = structure_pattern
         self.run_dir = run_dir
 
         # Copy infile to run dir
@@ -107,47 +140,12 @@ class LammpsCalculator:
 
         # Modify variables of in-file
         self.infile = InFile(self.new_infile_path)
-        self.infile.edit_variables({structure_key : os.path.join(run_dir, structure_pattern),
-                                    config_key : n_configs})
+        self.infile.edit_variables(edited_variables_dict)
 
-    def run(self, dir) -> int:
+    def run(self, dir : PathLike) -> int:
         os.chdir(dir)
         return os.system(f"lmp -in {self.new_infile_path} -screen lmp.screen")
     
-    def remove_dump_headers(self, simulation_folder):
-        bash_script = f""" #!/bin/bash
-
-            # figure out how many atoms there are
-            na=`head -n 4 dump.forces | tail -n 1`
-            # remove the header from the stat file
-            grep -v '^#' dump.stat > ./infile.stat
-            # figure out how many timesteps there are
-            nt=`wc -l ./infile.stat"""
-        
-        bash_script_end = """| awk '{print $1}'`
-        
-            # create the positions and force files
-            [ -f infile.forces ] && rm infile.forces
-            [ -f infile.positions ] && rm infile.positions
-            for t in `seq 1 ${nt}`
-            do
-                nl=$(( ${na}+9))
-                nll=$(( ${nl}*${t} ))
-                echo "t ${t} ${nl} ${nll}"
-                head -n ${nll} dump.forces | tail -n ${na} >> infile.forces
-                head -n ${nll} dump.positions | tail -n ${na} >> infile.positions
-            done
-        """
-
-        bash_script += bash_script_end
-
-        bash_file = os.path.join(simulation_folder, "remove_dump_headers")
-        with open(bash_file, "w") as f:
-            f.write(bash_script)
-        
-        os.chdir(simulation_folder)
-        os.system(f"chmod u+x {bash_file}")
-        os.system(f"{bash_file}")
-
-
-
+    def mpirun(self, dir : PathLike, ncores : int) -> int:
+        os.chdir(dir)
+        return os.system(f"mpirun -np {ncores} lmp -in {self.new_infile_path} -screen lmp.screen")

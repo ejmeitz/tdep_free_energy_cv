@@ -1,0 +1,1 @@
+Note : The infile.ssposcar and the LAMMPS initial structure files MUST have the atoms in the same order or TDEP will give weird results.

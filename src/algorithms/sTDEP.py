@@ -6,11 +6,12 @@ from os.path import join
 
 from src import (
     PathLike,
-    LammpsCalculator,
+    LammpsSimulator,
     CanonicalConfigs,
     ExtractForceConstants, 
     PhononDispersion,
-    write_tdep_meta
+    write_tdep_meta,
+    remove_dump_headers
 )
 
 @dataclass
@@ -24,7 +25,7 @@ class sTDEP_Params:
     r_cut2 : float
     ncores : int = 1
     force_calc : str = "lammps"
-    lammps_base_script : Optional[str] = None #(e.g. LJ_argon.in)
+    lammps_base_script : Optional[str] = None #(e.g. LJ_argon_snapshots.in)
 
 def run_init_iteration(p : sTDEP_Params, current_dir : PathLike, run_dir : PathLike):
 
@@ -62,7 +63,7 @@ def run_stdep(p : sTDEP_Params):
     # Pre-calc stuff needed for force calculators
     if p.force_calc == "lammps":
         file_path = os.path.dirname(os.path.realpath(__file__))
-        base_infile_path = os.path.join(file_path, "..", "..", "lammps_scripts", p.lammps_base_script)
+        base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.lammps_base_script)
         base_infile_path = os.path.abspath(base_infile_path)
     elif p.force_calc == "vasp":
         raise NotImplementedError("VASP force calculator not implemented yet")
@@ -91,12 +92,13 @@ def run_stdep(p : sTDEP_Params):
         # Calculate forces on configurations
         if p.force_calc == "lammps":
             N_atoms = cc.output_to_lammps_input(ip)
-            lc = LammpsCalculator(base_infile_path,
-                                  ip,
-                                  "contcar_conf",
-                                  p.n_configs)
-            lc.run(ip)
-            lc.remove_dump_headers(ip) # makes infile.positions, infile.stat, infile.forces
+
+            # These must match the keys in the LAMMPS input file
+            var_dict = {"structure_path" : os.path.join(ip, "contcar_conf"), "n_configs" : p.n_configs}
+            ls = LammpsSimulator(base_infile_path, ip, var_dict)
+
+            ls.run(ip)
+            remove_dump_headers(ip) # makes infile.positions, infile.stat, infile.forces
             write_tdep_meta(ip, N_atoms, p.n_configs, 0.0, p.temperature)
         else:
             raise NotImplementedError("VASP Force calc not implemented")

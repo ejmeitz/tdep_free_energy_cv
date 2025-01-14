@@ -9,6 +9,8 @@ from src import PathLike
 
 class PhononDispersion(TDEP_Command):
 
+    letter_map = {"GM" : "$\Gamma$", "X" : "X", "K" : "K", "R" : "R", "L" : "L"}
+
     def __init__(
             self,
             q_grid : List[int],
@@ -69,6 +71,11 @@ class PhononDispersion(TDEP_Command):
         elif self.unit == "icm":
             return "cm^-1"
         return "unknown-unit"
+    
+    def __parse_path_letters_from_log(self):
+        # parse for "number of paths: 4"
+        # paths below that.
+        pass
 
     def plot_dos(self, basepath : PathLike = os.getcwd(), outpath : PathLike = os.getcwd()):
         dos_data = np.loadtxt(os.path.join(basepath, "outfile.phonon_dos"))
@@ -92,7 +99,7 @@ class PhononDispersion(TDEP_Command):
         plt.plot(x, y, color = "#21deb2", lw = 2)
 
         # Configure plot
-        # plt.xticks(xtck, xtckl)
+        plt.xticks(xtck) #,xtckl)
         plt.gca().tick_params(axis='y', which='both', direction='in')  # For y minor ticks
         plt.ylabel(f"Frequency [{self.__unit_to_plot_label()}]");
         plt.xlim([0, max(x)])

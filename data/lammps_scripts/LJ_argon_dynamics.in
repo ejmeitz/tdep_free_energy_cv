@@ -1,0 +1,82 @@
+units       metal
+variable    T equal 80
+variable    dt equal 0.002
+variable	t_damp equal 100*dt
+variable	sigma equal 3.4
+variable 	epsilon equal 0.010423
+variable 	r_cut equal 8.5 # usually ~ 3 * sigma
+variable 	velocity_seed equal 4231
+variable data_interval equal 5000
+variable N_steps equal 1000000
+variable N_steps_equil equal 250000
+
+variable	mass equal 39.95
+variable 	lattice_param equal 5.2468 # @10K, 1837 kg/m^3
+
+variable structure_path string /mnt/mntsdb/emeitz/initial_structure.data
+read_data ${structure_path}
+
+
+#Set up interatomic potential
+pair_style   lj/cut ${r_cut} # 2.5 sigma
+pair_coeff   * * ${epsilon} ${sigma}
+pair_modify  shift yes #shift potential up to y=0 to remove dis-continuity at r_cut
+timestep     ${dt}
+
+compute 1 all temp
+compute 2 all pe
+compute 3 all ke
+compute 4 all pressure thermo_temp
+variable          st    equal step
+
+
+dump equilibrium_data all custom 1 equilibrium.atom id type xs ys zs mass
+dump_modify equilibrium_data format line "%d %d %.15f %.15f %.15f %.8f" sort id
+fix eq_eng all print 1 "${st} $(c_1:%.10f) $(c_2:%.10f) $(c_3:%.10f)" screen no file equilibrium.energies 
+run 0
+undump equilibrium_data
+unfix eq_eng
+
+
+#Define and Run Simulation
+velocity all create ${T} ${velocity_seed} dist gaussian mom yes
+
+#Get temperature correct
+fix 1 all nvt temp $T $T ${t_damp}
+	thermo_style custom step temp etotal
+	thermo 50000
+	run ${N_steps_equil}
+unfix 1
+
+variable          tm    equal step
+variable          Et    equal etotal
+variable          Ep    equal pe
+variable          Ek    equal ke
+variable          tmp   equal temp
+variable          pr    equal c_4/10000
+variable          sxx   equal c_4[1]/10000
+variable          syy   equal c_4[2]/10000
+variable          szz   equal c_4[3]/10000
+variable          sxy   equal c_4[4]/10000
+variable          sxz   equal c_4[5]/10000
+variable          syz   equal c_4[6]/10000
+
+fix 1 all nvt temp $T $T ${t_damp}
+	reset_timestep 0
+	thermo 50000
+	dump posdump all custom ${data_interval} dump.positions xs ys zs
+	dump_modify posdump format line "%.15f %.15f %.15f" sort id
+
+	#dump posdump_unrolled all custom ${data_interval} dump.positions_unrolled xsu ysu zsu
+	#dump_modify posdump_unrolled format line "%.15f %.15f %.15f" sort id
+
+	dump forcedump all custom ${data_interval} dump.forces fx fy fz
+	dump_modify forcedump  format line "%.15f %.15f %.15f" sort id
+
+	fix statdump all print ${data_interval} "${st} ${tm} ${Et} ${Ep} ${Ek} ${tmp} ${pr} ${sxx} ${syy} ${szz} ${sxy} ${sxz} ${syz}" screen no file dump.stat
+	fix thermo_data all print ${data_interval} "${st} $(c_1:%.8f) $(c_2:%.8f) $(c_3:%.8f)" screen no file thermo_data.txt    	
+	run ${N_steps}		
+unfix 1
+
+
+

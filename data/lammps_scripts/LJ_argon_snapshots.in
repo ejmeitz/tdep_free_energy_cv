@@ -1,7 +1,8 @@
 # This file is setup to calculate forces on a set of independent snapshots
 # LAMMPS is just being used as a force calculator and not for dynamics
 
-# Only these should be changed
+# DO NOT CHANGE THESE VARIABLES NAMES
+# THEY ARE HARD CODED IN sTDEP.py
 variable structure_path string path-to-data-file
 variable n_configs equal 1
 

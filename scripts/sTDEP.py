@@ -18,7 +18,7 @@ def parse_arguments():
     parser.add_argument("--force_calc", type=str, default="lammps", help="Force calculation method. Default is 'lammps'.")
     parser.add_argument("--lammps_base_script", required = False, type = str, help="Lammps base script (e.g., LJ_argon.in).")
     parser.add_argument("--num_unit_cells" , required = False, type = int, help = "If not passed expects infile.sspocar, else will generate this file")
-
+    
     return parser.parse_args()
 
 def main():
