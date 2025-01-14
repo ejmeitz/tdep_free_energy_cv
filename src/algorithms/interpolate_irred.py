@@ -3,7 +3,7 @@ import logging
 import os, shutil
 from os.path import join
 from typing import List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field,
 
 from src import (
     ExtractForceConstants,
@@ -16,9 +16,10 @@ from src import (
 
 @dataclass
 class LammpsDynamicsSettings:
-    init_structure : str #(e.g. initial_structure_LJ.data)
-    time_step : float 
+    time_step_fs : float 
     n_atoms : int
+    script_name : str #(e.g., LJ_argon_dynamics.in)
+    structure_path : str #(e.g. /home/emeitz/initial_structure_LJ.data)
     n_cores : int = 4
     data_interval : int = 5000
     n_configs : int = 500
@@ -35,20 +36,19 @@ class InterpolateIFCParams:
     n_cores : int = 1
     # interp_mode : str = "linear" #only piecewise linear for now
     force_calc : str = "lammps"
-    lammps_base_script : Optional[str] = None #(e.g., LJ_argon_dynamics.in)
-    lammps_init_structure : Optional[str] = None #(e.g. initial_structure_LJ.data)
-    lds : Optional[LammpsDynamicsSettings] = None
+    lds : LammpsDynamicsSettings = field(
+        default_factory=LammpsDynamicsSettings
+    )
     
 
-def run_lammps(p, file_path, T, base_infile_path, sim_root_dir):
-    structure_path = os.path.join(file_path, "..", "..", "data", "structures", "LJ", p.lammps_init_structure)
+def run_lammps(p, T, base_infile_path, sim_root_dir):
     N_steps = p.lds.n_configs * p.lds.data_interval
-    var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : structure_path}
+    var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.structure_path}
     ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict)
 
     ls.mpirun(sim_root_dir, p.lds.n_cores)
     remove_dump_headers(sim_root_dir) # makes infile.positions, infile.stat, infile.forces
-    write_tdep_meta(sim_root_dir, p.lds.n_atoms, p.lds.n_configs, p.lds.time_step, T)
+    write_tdep_meta(sim_root_dir, p.lds.n_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
 
     # Parse thermodata.txt and get actual average temp
     temps = np.loadtxt(join(sim_root_dir, "thermo_data.txt"))[: , p.lds.thermo_data_temp_idx]
@@ -65,7 +65,7 @@ def write_temps_file(out_dir, temps_to_calculate, mean_sim_temps):
             f.write(f"{T} ")
         f.write("\n")
 
-def run_interpolate_ifcs(p : InterpolateIFCParams):
+def run_interpolate_irred(p : InterpolateIFCParams):
 
     # Check that interp temps are not actually extrapolating
     min_T_calc = np.amin(p.temps_to_calculate)
@@ -85,7 +85,7 @@ def run_interpolate_ifcs(p : InterpolateIFCParams):
         if p.lds is None:
             raise ValueError("Force calculator set to lammps, must pass LammpsDynamicsSettings")
         file_path = os.path.dirname(os.path.realpath(__file__))
-        base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.lammps_base_script)
+        base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.lds.script_name)
         base_infile_path = os.path.abspath(base_infile_path)
     elif p.force_calc == "vasp":
         raise NotImplementedError("VASP force calculator not implemented yet")
@@ -105,7 +105,7 @@ def run_interpolate_ifcs(p : InterpolateIFCParams):
         os.mkdir(sim_root_dir)
 
         if p.force_calc == "lammps":
-            mean_sim_temp = run_lammps(p, file_path, T, base_infile_path, sim_root_dir)
+            mean_sim_temp = run_lammps(p, T, base_infile_path, sim_root_dir)
             mean_sim_temps.append(mean_sim_temp)
         else:
             raise NotImplementedError()
