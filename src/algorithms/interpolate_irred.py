@@ -34,8 +34,10 @@ class InterpolateIFCParams:
     rc3 : Optional[float] = None
     rc4 : Optional[float] = None
     n_cores : int = 1
-    # interp_mode : str = "linear" #only piecewise linear for now
+    interpolate_U0 : bool = True
+    cleanup : bool = True
     force_calc : str = "lammps"
+    make_ss_ifcs : bool = False # if irred are converted back to ifc for supercell
     lds : LammpsDynamicsSettings = field(
         default_factory=LammpsDynamicsSettings
     )
@@ -101,6 +103,7 @@ def run_interpolate_irred(p : InterpolateIFCParams):
     irred2_ifcs = []
     irred3_ifcs = []
     irred4_ifcs = []
+    U0s = []
     for i, T in enumerate(TEMPS_CALC):
         sim_root_dir = join(sim_dir, f"T{T}")
         os.mkdir(sim_root_dir)
@@ -135,6 +138,10 @@ def run_interpolate_irred(p : InterpolateIFCParams):
             tmp = np.loadtxt(join(sim_root_dir, f"outfile.irrifc_fourthorder"))
             irred4_ifcs.append(tmp)
 
+        if p.interpolate_U0:
+            tmp = np.loadtxt(join(sim_root_dir, "outfile.U0"))
+            U0s.append(tmp[-1])
+
     # Save actual temps to see if our IFCs are accurate
     if p.force_calc == "lammps":       
         write_temps_file(p.basepath, TEMPS_CALC, mean_sim_temps)
@@ -158,27 +165,103 @@ def run_interpolate_irred(p : InterpolateIFCParams):
         for i in range(irred2_ifcs.shape[1]):
             new_irred4_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred4_ifcs[:,i])
 
+    if p.interpolate_U0:
+        interpolated_U0s = np.interp(TEMPS_INTERP, mean_sim_temps, U0s)
+
     # Save interpolated IFCs per tempearture
+    irred2_paths = []
+    irred3_paths = [] if p.rc3 is not None else None
+    irred4_paths = [] if p.rc4 is not None else None
+    irred_out_path = join(p.basepath, "INTERPOLATED_IRRED_IFCS")
+    os.mkdir(irred_out_path)
     for j, T in enumerate(TEMPS_INTERP):
         temp_str = f"{T}".replace('.', '_')
-        np.savetxt(join(p.basepath, f"infile.irrifc_secondorder_{temp_str}"), new_irred2_ifcs[:,j])
+        p2 = join(irred_out_path, f"infile.irrifc_secondorder_{temp_str}")
+        np.savetxt(p2, new_irred2_ifcs[:,j])
+        irred2_paths.append(p2)
 
         if p.rc3 is not None:
-            np.savetxt(join(p.basepath, f"infile.irrifc_thirdorder_{temp_str}"), new_irred3_ifcs[:,j])
+            p3 = join(irred_out_path, f"infile.irrifc_thirdorder_{temp_str}")
+            np.savetxt(p3, new_irred3_ifcs[:,j])
+            irred3_paths.append(p3)
 
         if p.rc4 is not None:
-            np.savetxt(join(p.basepath, f"infile.irrifc_fourthorder_{temp_str}"), new_irred4_ifcs[:,j])
-
+            p4 = join(irred_out_path, f"infile.irrifc_fourthorder_{temp_str}")
+            np.savetxt(p4, new_irred4_ifcs[:,j])
+            irred4_paths.append(p4)
+    
+    if p.interpolate_U0:
+        np.savetxt(join(irred_out_path, "interpolated_U0s.txt"), np.column_stack([TEMPS_INTERP,interpolated_U0s]),
+                     fmt = "%.10f", header = "# Temperature U0")
 
     # WRITE EXTRACT IFC COMMAND USED 
     # THIS MUST BE THE SAME WHEN USING 
     # THE IRRED IFC CREATED HERE
+    ef_tmp = ExtractForceConstants(p.rc2, p.rc3, p.rc4, read_irreducible=True)
     with open(join(p.basepath, "READ_IRRED_IFC_CMD.txt"), "w") as f:
         f.write("# YOU MUST USE THIS COMMAND WHEN USING THE INTERPOLATED IFCS.\n \
                 THE PARAMS MUST MATCH THOSE USED TO CREATE THE INTERPOLATION POINTS.\n \
                 THE infile.ucposcar AND infile.ssposcar MUST ALSO BE IDENTICAL.\n")
-        f.write(ef._cmd(extra_flags = ["readirreducible"]))
-    
+        f.write(ef_tmp._cmd())
 
+
+    if p.make_ss_ifcs:
+        logging.info("Converting interpolated irreducible IFCs, back to super cell IFCs")
+        convert_irred_to_ss_ifc(p, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path)
+
+    if p.cleanup:
+        logging.info("Cleaning up...will delete simulation data.")
+        os.system(f"rm -rf {sim_dir}")
+    
+def convert_irred_to_ss_ifc(p : InterpolateIFCParams, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path):
+    
+    ss_out_dir = join(p.basepath, "INTERPOLATED_SUPERCELL_IFCS")
+    os.mkdir(ss_out_dir)
+
+    ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4, read_irreducible=True)
+    for T in TEMPS_INTERP:
+        temp_str = f"{T}".replace('.', '_')
+        ss_out_dir_T = join(ss_out_dir, f"T{temp_str}")
+        sim_dir_T = join(sim_dir, f"T{temp_str}_SS_RECONSTRUCT")
+        os.mkdir(sim_dir_T)
+        os.chdir(sim_dir_T)
+
+        # Copy interpolated irreducible IFCs to this dir
+        shutil.copyfile(join(irred_out_path, f"infile.irrifc_secondorder_{temp_str}"), join(sim_dir_T, "infile.irrifc_secondorder"))
+        if p.rc3 is not None:
+            shutil.copyfile(join(irred_out_path, f"infile.irrifc_thirdorder_{temp_str}"), join(sim_dir_T, "infile.irrifc_thirdorder"))
+        if p.rc4 is not None:
+            shutil.copyfile(join(irred_out_path, f"infile.irrifc_fourthorder_{temp_str}"), join(sim_dir_T, "infile.irrifc_fourthorder"))
+
+        # Move required files
+        shutil.copyfile(join(p.basepath, "infile.ucposcar"), join(sim_dir_T, "infile.ucposcar"))
+        shutil.copyfile(join(p.basepath, "infile.ssposcar"), join(sim_dir_T, "infile.ssposcar"))
+
+        # forces, positions and stat file will not affect
+        # IFC calculation but need to be valid. Just
+        # use the files from the first temp
+        shutil.copyfile(join(sim_dir, f"T{TEMPS_CALC[0]}", "infile.positions"), join(sim_dir_T, "infile.positions"))
+        shutil.copyfile(join(sim_dir, f"T{TEMPS_CALC[0]}", "infile.forces"), join(sim_dir_T, "infile.forces"))
+        np.savetxt(join(sim_dir_T, "infile.stat"), np.zeros((p.lds.n_configs, 13))) # this isnt even used, but still has to exist 
+
+        # Write a new meta file cause we can
+        write_tdep_meta(sim_dir_T, p.lds.n_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
+
+        # Re-run extract force constants using the irreducible IFCs
+        # This still needs infile.meta, infile.stat, infile.positions and infile.forces
+        # to run although those will not be used for calculating the IFCs
+        ef.mpirun(p.ncores, sim_dir_T)
+
+
+        shutil.copyfile(join(sim_dir_T, "outfile.forceconstant"), 
+                        join(ss_out_dir_T, f"infile.forceconstant"))
+        
+        if p.rc3 is not None:
+            shutil.copyfile(join(sim_dir_T, "outfile.forceconstant_thirdorder"), 
+                        join(ss_out_dir_T, f"infile.forceconstant_thirdorder"))
+            
+        if p.rc3 is not None:
+            shutil.copyfile(join(sim_dir_T, "outfile.forceconstant_thirdorder"), 
+                        join(ss_out_dir_T, f"infile.forceconstant_thirdorder"))
 
     

@@ -22,7 +22,6 @@ def remove_dump_headers(simulation_folder):
             do
                 nl=$(( ${na}+9))
                 nll=$(( ${nl}*${t} ))
-                echo "t ${t} ${nl} ${nll}"
                 head -n ${nll} dump.forces | tail -n ${na} >> infile.forces
                 head -n ${nll} dump.positions | tail -n ${na} >> infile.positions
             done

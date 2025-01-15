@@ -11,12 +11,14 @@ class ExtractForceConstants(TDEP_Command):
             r_cut3 : Optional[float] = None,
             r_cut4 : Optional[float] = None,
             stride : Optional[int] = 1,
+            read_irreducible : bool = False,
             log_file : str = "extract_ifcs.log"
         ):
         self.r_cut2 = r_cut2
         self.r_cut3 = r_cut3
         self.r_cut4 = r_cut4
         self.stride = stride
+        self.read_irreducible = read_irreducible
         self.log_file = log_file
     
     @property
@@ -24,11 +26,13 @@ class ExtractForceConstants(TDEP_Command):
         return ["infile.ucposcar", "infile.ssposcar", "infile.meta", "infile.stat", "infile.positions", "infile.forces"]
 
     def output_files(self) -> List[str]:
-        files = ["outfile.forceconstant"]
+        files = ["outfile.forceconstant", "outfile.irrifc_secondorder"]
         if self.r_cut3 is not None:
             files.append("outfile.forceconstant_thirdorder")
+            files.append("outfile.irrifc_thirdorder")
         if self.r_cut4 is not None:
             files.append("outfile.forceconstant_fourthorder")
+            files.append("outfile.irrifc_fourthorder")
         return files
 
     def input_parameters_valid(self):
@@ -51,9 +55,8 @@ class ExtractForceConstants(TDEP_Command):
         if self.r_cut4 is not None:
             cmd += f" -rc4 {self.r_cut4}"
 
-        if extra_flags is not None:
-            for ef in extra_flags:
-                cmd += f" --{ef}"
+        if self.read_irreducible:
+            cmd += " --readirreducible"
         
         cmd += f" --potential_energy_differences --verbose > {self.log_file}"
         
