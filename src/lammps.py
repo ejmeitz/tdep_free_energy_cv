@@ -1,7 +1,26 @@
-import os, shutil
-from abc import ABC, abstractmethod
+import os, shutil, subprocess
+from typing import List, Optional
+import numpy as np
 
 from .util import PathLike
+
+def get_n_atoms_from_dump(dump_path : PathLike):
+    try:
+        # Run the bash command
+        result = subprocess.run(
+            f"head -n 4 {dump_path} | tail -n 1",
+            shell=True,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE
+        )
+        # Extract the output and convert to an integer
+        output_line = result.stdout.strip()
+        return int(output_line)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {e}")
+    except ValueError as e:
+        print(f"Could not convert output to integer: {e}")
 
 def remove_dump_headers(simulation_folder):
         bash_script = f""" #!/bin/bash
@@ -45,7 +64,7 @@ class InFile():
     Class to keep track of, and modify variables for an in-file
     '''
 
-    def __init__(self, path):
+    def __init__(self, path, required_keys : Optional[List[str]] = None):
         '''
         Path: Absolute file path to the in-file, contains filename and extension.
         e.g. C:/Users/ejmei/Desktop/in.argon
@@ -65,6 +84,11 @@ class InFile():
         self.free_variable_line_numbers = {}
         self.free_variable_modes = {}
         self.__parse_variables()
+
+        if required_keys is not None:
+            keys_present = np.array([k in self.free_variables for k in required_keys])
+            if not all(keys_present):
+                raise ValueError(f"Missing required variables in LAMMPS file: {required_keys[~keys_present]}")
         
 
     def __parse_variables(self) -> None:
@@ -127,7 +151,8 @@ class LammpsSimulator:
             self,
             base_infile_path : PathLike,
             run_dir : PathLike,
-            edited_variables_dict : dict
+            edited_variables_dict : dict,
+            required_keys : Optional[List[str]] = None
         ):
         self.base_infile_path = base_infile_path
         self.run_dir = run_dir
@@ -138,7 +163,7 @@ class LammpsSimulator:
         shutil.copyfile(self.base_infile_path, self.new_infile_path)
 
         # Modify variables of in-file
-        self.infile = InFile(self.new_infile_path)
+        self.infile = InFile(self.new_infile_path, required_keys)
         self.infile.edit_variables(edited_variables_dict)
 
     def run(self, dir : PathLike) -> int:

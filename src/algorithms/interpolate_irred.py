@@ -46,7 +46,8 @@ class InterpolateIFCParams:
 def run_lammps(p, T, base_infile_path, sim_root_dir):
     N_steps = p.lds.n_configs * p.lds.data_interval
     var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.lds.structure_path}
-    ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict)
+    required_vars = ["T", "N_steps", "structure_path"]
+    ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict, required_vars)
 
     ls.mpirun(sim_root_dir, p.lds.n_cores)
     remove_dump_headers(sim_root_dir) # makes infile.positions, infile.stat, infile.forces
@@ -242,7 +243,8 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, TEMPS_INTERP, TEMPS_CALC, 
         # use the files from the first temp
         shutil.copyfile(join(sim_dir, f"T{TEMPS_CALC[0]}", "infile.positions"), join(sim_dir_T, "infile.positions"))
         shutil.copyfile(join(sim_dir, f"T{TEMPS_CALC[0]}", "infile.forces"), join(sim_dir_T, "infile.forces"))
-        np.savetxt(join(sim_dir_T, "infile.stat"), np.zeros((p.lds.n_configs, 13))) # this isnt even used, but still has to exist 
+        stat_fmt = ['%d', '%d'] + ['%.8f'] * 11
+        np.savetxt(join(sim_dir_T, "infile.stat"), np.zeros((p.lds.n_configs, 13)), fmt = stat_fmt) # this isnt even used, but still has to exist 
 
         # Write a new meta file cause we can
         write_tdep_meta(sim_dir_T, p.lds.n_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
@@ -250,7 +252,7 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, TEMPS_INTERP, TEMPS_CALC, 
         # Re-run extract force constants using the irreducible IFCs
         # This still needs infile.meta, infile.stat, infile.positions and infile.forces
         # to run although those will not be used for calculating the IFCs
-        ef.mpirun(p.ncores, sim_dir_T)
+        ef.mpirun(p.n_cores, sim_dir_T)
 
 
         shutil.copyfile(join(sim_dir_T, "outfile.forceconstant"), 

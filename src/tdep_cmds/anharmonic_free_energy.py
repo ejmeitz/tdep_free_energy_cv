@@ -12,6 +12,7 @@ class AnharmonicFreeEnergy(TDEP_Command):
             third_order : bool = True,
             fourth_order : bool = True,
             stochastic : bool = False,
+            dump_mode_values : bool = False, # requires my modified TDEP
             log_file : str = "anharm_free_energy.log"
         ):
         self.q_grid = q_grid
@@ -60,6 +61,9 @@ class AnharmonicFreeEnergy(TDEP_Command):
             cmd += " --quantum"
         if self.stochastic:
             cmd += " --stochastic"
+
+        if self.dump_mode_values:
+            cmd += " --modevalues"
 
         return cmd + f" > {self.log_file}"
     
