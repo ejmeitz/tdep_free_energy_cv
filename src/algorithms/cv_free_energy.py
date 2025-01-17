@@ -1,13 +1,11 @@
-from dataclasses import dataclass
-from typing import Optional, List
+from typing import List
 import logging
 import os, shutil
 import numpy as np
 from os.path import join
 
 from src import (
-    PathLike,
-    InterpolateIFCParams,
+    HeatCapFreeEnergyParams,
     AnharmonicFreeEnergy,
     write_tdep_meta,
     get_n_atoms_from_dump,
@@ -16,21 +14,6 @@ from src import (
     LammpsSimulator
 )
 
-@dataclass
-class HeatCapFreeEnergyParams:
-    temperature : float
-    dT : float
-    k_mesh : List[int]
-    ucposrcar_path : PathLike
-    ssposcar_path : PathLike
-    interp_settings : InterpolateIFCParams
-    n_cores : int = 1
-    fd_stencil_size : int = 3
-    quantum : bool = False # use Bose-Einstein or Classical Occupation
-    stochastic : bool = False # if 2nd order IFCs are fit with sTDEP then True
-    force_calc : str = "lammps"
-    script_name : Optional[str] = None #(e.g., LJ_argon_dynamics.in)
-    structure_path : Optional[str] = None #(e.g. /home/emeitz/initial_structure_LJ.data)
 
 # Heat capacity is second derivative of free energy
 def get_fd_coeffs(size):
@@ -86,10 +69,11 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams):
     temp_stencil = p.temperature + np.array([to*p.dT for to in temp_offsets])
 
     check_params_consistent(p, temp_stencil)
+    p.interp_settings.n_cores = p.n_cores
 
     # Run interpolation, expects infile.ucposcar and infile.ssposcar in root dir
-    shutil.copyfile(p.ucposrcar_path, join(p.lds.basepath, "infile.ucposcar"))
-    shutil.copyfile(p.ssposcar_path, join(p.lds.basepath, "infile.ssposcar"))
+    shutil.copyfile(p.interp_settings.ucposrcar_path, join(p.lds.basepath, "infile.ucposcar"))
+    shutil.copyfile(p.interp_settings.ssposcar_path, join(p.lds.basepath, "infile.ssposcar"))
     run_interpolate_irred(p.interp_settings)
 
     # Generate required input files at central temperature
@@ -100,10 +84,10 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams):
         logging.info(f"Running LAMMPS at {T} K")
 
         file_path = os.path.dirname(os.path.realpath(__file__))
-        base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.script_name)
+        base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.interp_settings.lds.script_name)
         base_infile_path = os.path.abspath(base_infile_path)
 
-        N_configs, N_atoms = run_dummy_lammps(p.structure_path, T, base_infile_path, md_dir)
+        N_configs, N_atoms = run_dummy_lammps(p.interp_settings.lds.structure_path, T, base_infile_path, md_dir)
 
     # Run free energy calculation on each of the interpolation points
     free_energy_dir = join(p.basepath, "FREE_ENERGY_CALCS")
@@ -114,8 +98,8 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams):
         free_energy_dir_T = join(free_energy_dir, f"T{T}")
         os.mkdir(free_energy_dir_T)
 
-        shutil.copyfile(p.ucposrcar_path, join(free_energy_dir_T, "infile.ucposcar"))
-        shutil.copyfile(p.ssposcar_path, join(free_energy_dir_T, "infile.ssposcar"))
+        shutil.copyfile(p.interp_settings.ucposrcar_path, join(free_energy_dir_T, "infile.ucposcar"))
+        shutil.copyfile(p.interp_settings.ssposcar_path, join(free_energy_dir_T, "infile.ssposcar"))
 
         # Move MD simulation data to this dir
         # This will technically be at the wrong temperature.
@@ -130,7 +114,6 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams):
         write_tdep_meta(free_energy_dir_T, N_atoms, N_configs, 1.0, T)
 
         afe.mpirun(p.n_cores, free_energy_dir_T)
-
 
     # Each free energy run should produce which we can get mode heat capacities from:
     # - outfile.F_ph_mode_resolved

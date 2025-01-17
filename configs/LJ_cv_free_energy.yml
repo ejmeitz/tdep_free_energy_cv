@@ -1,0 +1,23 @@
+temperature : 80
+dT : 0.25
+k_mesh : [30, 30, 30]
+n_cores : 40
+fd_stencil_size : 5
+interp_settings : 
+  basepath : "/home/emeitz/tests/TDEP_free_energy/interp_test/lib_test"
+  ucposcar_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/LJ/infile.ucposcar_oneatom"
+  ssposcar_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/LJ/infile.ssposcar"
+  temps_to_calculate : [75,80,85]
+  temps_to_interpolate : [79.5, 79.75, 80, 80.25, 80.5]
+  rc2 : 8.5
+  #rc3 : 5.0
+  #rc4 : 2.0
+  make_ss_ifcs : True
+  force_calc : "lammps"
+  lds :
+      time_step_fs : 2.0 
+      script_name : "LJ_argon_dynamics.in"
+      structure_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/LJ/initial_structure_LJ.data"
+      n_cores : 4
+      data_interval : 5000
+      n_configs : 25

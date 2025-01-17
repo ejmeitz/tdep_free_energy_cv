@@ -1,11 +1,10 @@
-from dataclasses import dataclass
-from typing import Optional, List
 import logging
 import os, shutil
 from os.path import join
 
 from src import (
     PathLike,
+    sTDEP_Params,
     LammpsSimulator,
     CanonicalConfigs,
     ExtractForceConstants, 
@@ -13,19 +12,6 @@ from src import (
     write_tdep_meta,
     remove_dump_headers
 )
-
-@dataclass
-class sTDEP_Params:
-    iters : int
-    n_configs : int
-    temperature : float
-    mode : str
-    basepath : PathLike 
-    maximum_frequency : float
-    r_cut2 : float
-    ncores : int = 1
-    force_calc : str = "lammps"
-    lammps_base_script : Optional[str] = None #(e.g. LJ_argon_snapshots.in)
 
 def run_init_iteration(p : sTDEP_Params, current_dir : PathLike, run_dir : PathLike):
 

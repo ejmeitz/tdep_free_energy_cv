@@ -10,10 +10,8 @@ n_cores : 40
 force_calc : "lammps"
 lds :
     time_step_fs : 2.0 
-    n_atoms : 256
     script_name : "LJ_argon_dynamics.in"
     structure_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/LJ/initial_structure_LJ.data"
-    n_cores : 4
     data_interval : 5000
     n_configs : 50
 
