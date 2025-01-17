@@ -5,6 +5,7 @@ import yaml
 
 from src import (
     setup_logging,
+    Paths,
     InterpolateIFCParams,
     LammpsDynamicsSettings,
     run_interpolate_irred
@@ -22,24 +23,25 @@ def main():
 
     with open(args.config) as f:
         cfg_data = yaml.safe_load(f)
-        interp_params  = {k:v for k,v in cfg_data.items() if k in InterpolateIFCParams.__annotations__}
-        config = InterpolateIFCParams(**interp_params)
-        if config.lds is not None:
-            config.lds = LammpsDynamicsSettings(**config.lds)
 
-    if not os.path.isdir(config.basepath):
+    paths = Paths(**cfg_data["Paths"])
+
+    params = InterpolateIFCParams(**cfg_data["InterpolateIFCParams"])
+    if params.lds is not None:
+        params.lds = LammpsDynamicsSettings(**params.lds)
+
+    if not os.path.isdir(paths.basepath):
         raise RuntimeError("basepath is not a directory")
 
-    os.chdir(config.basepath)
+    os.chdir(paths.basepath)
 
-    setup_logging("sTDEP.log", config.basepath)
+    setup_logging("sTDEP.log", paths.basepath)
     logging.info(f"CWD: {os.getcwd()}")
 
-    # Move and rename usposcar and ssposcar
-    shutil.copyfile(cfg_data["ucposcar_path"], os.path.join(config.basepath, "infile.ucposcar"))
-    shutil.copyfile(cfg_data["ssposcar_path"], os.path.join(config.basepath, "infile.ssposcar"))
+    shutil.copyfile(paths.ucposcar_path, os.path.join(paths.basepath, "infile.ucposcar"))
+    shutil.copyfile(paths.ssposcar_path, os.path.join(paths.basepath, "infile.ssposcar"))
 
-    run_interpolate_irred(config)
+    run_interpolate_irred(params, paths)
 
 
 if __name__ == "__main__":

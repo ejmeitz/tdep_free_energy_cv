@@ -5,6 +5,7 @@ import yaml
 
 from src import (
     setup_logging,
+    Paths,
     HeatCapFreeEnergyParams,
     run_cv_free_energy,
     InterpolateIFCParams
@@ -23,27 +24,25 @@ def main():
 
     with open(args.config) as f:
         cfg_data = yaml.safe_load(f)
-        cv_params  = {k:v for k,v in cfg_data.items() if k in HeatCapFreeEnergyParams.__annotations__}
-        config = HeatCapFreeEnergyParams(**cv_params)
-        if config.interp_settings is not None:
-            config.interp_settings = InterpolateIFCParams(**config.interp_settings)
 
-        if "ucposcar_path" not in cfg_data or "ssposcar_path" not in cfg_data:
-            raise ValueError("Need ucposcar_path and ssposcar_path in config.yml as well")
+    paths = Paths(**cfg_data["Paths"])
+    params = HeatCapFreeEnergyParams(**cfg_data["HeatCapFreeEnergyParams"])
+    if params.interp_settings is not None:
+        params.interp_settings = InterpolateIFCParams(**params.interp_settings)
 
-    if not os.path.isdir(config.basepath):
+    if not os.path.isdir(paths.basepath):
         raise RuntimeError("basepath is not a directory")
 
-    os.chdir(config.basepath)
+    os.chdir(paths.basepath)
 
-    setup_logging("sTDEP.log", config.basepath)
+    setup_logging("sTDEP.log", paths.basepath)
     logging.info(f"CWD: {os.getcwd()}")
 
     # Move and rename usposcar and ssposcar
-    shutil.copyfile(config.interp_settings.ucposcar_path, os.path.join(config.basepath, "infile.ucposcar"))
-    shutil.copyfile(config.interp_settings.ssposcar_path, os.path.join(config.basepath, "infile.ssposcar"))
+    shutil.copyfile(paths.ucposcar_path, os.path.join(paths.basepath, "infile.ucposcar"))
+    shutil.copyfile(paths.ssposcar_path, os.path.join(paths.basepath, "infile.ssposcar"))
 
-    run_cv_free_energy(config)
+    run_cv_free_energy(params, paths)
 
 if __name__ == "__main__":
     main()

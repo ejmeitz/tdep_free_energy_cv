@@ -14,7 +14,7 @@ from src import (
 )
 
 from .interpolate_irred import run_interpolate_irred
-from .configs import HeatCapFreeEnergyParams
+from .configs import HeatCapFreeEnergyParams, Paths
 
 
 # Heat capacity is second derivative of free energy
@@ -64,7 +64,7 @@ def run_dummy_lammps(T, structure_path, base_infile_path, sim_root_dir):
 
     return N_configs, N_atoms
 
-def run_cv_free_energy(p : HeatCapFreeEnergyParams):
+def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
 
 
     coeffs, temp_offsets = get_fd_coeffs(p.fd_stencil_size)
@@ -74,13 +74,13 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams):
     p.interp_settings.n_cores = p.n_cores
 
     # Run interpolation, expects infile.ucposcar and infile.ssposcar in root dir
-    shutil.copyfile(p.interp_settings.ucposrcar_path, join(p.lds.basepath, "infile.ucposcar"))
-    shutil.copyfile(p.interp_settings.ssposcar_path, join(p.lds.basepath, "infile.ssposcar"))
+    shutil.copyfile(paths.ucposrcar_path, join(p.lds.basepath, "infile.ucposcar"))
+    shutil.copyfile(paths.ssposcar_path, join(p.lds.basepath, "infile.ssposcar"))
     run_interpolate_irred(p.interp_settings)
 
     # Generate required input files at central temperature
     # these are just dummy files to we can call anharmonic_free_energy
-    md_dir = join(p.basepath, "CENTRAL_TEMP_SIMULATION")
+    md_dir = join(paths.basepath, "CENTRAL_TEMP_SIMULATION")
     os.mkdir(md_dir)
     if p.force_calc == "lammps":
         logging.info(f"Running LAMMPS at {T} K")
@@ -92,7 +92,7 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams):
         N_configs, N_atoms = run_dummy_lammps(p.interp_settings.lds.structure_path, T, base_infile_path, md_dir)
 
     # Run free energy calculation on each of the interpolation points
-    free_energy_dir = join(p.basepath, "FREE_ENERGY_CALCS")
+    free_energy_dir = join(paths.basepath, "FREE_ENERGY_CALCS")
     os.mkdir(free_energy_dir)
 
     afe = AnharmonicFreeEnergy(p.k_mesh, quantum = p.quantum, stochastic = p.stochastic)

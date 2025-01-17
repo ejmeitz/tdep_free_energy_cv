@@ -12,7 +12,7 @@ from src import (
     remove_dump_headers
 )
 
-from .configs import sTDEP_Params
+from .configs import sTDEP_Params, Paths
 
 def run_init_iteration(p : sTDEP_Params, current_dir : PathLike, run_dir : PathLike):
 
@@ -35,14 +35,14 @@ def prepare_next_dir(current_dir, dest_dir, init_pass : bool = False):
     else:
         shutil.copyfile(join(current_dir, "outfile.fakeforceconstant"), join(dest_dir, "infile.forceconstant"))
 
-def run_stdep(p : sTDEP_Params):
+def run_stdep(p : sTDEP_Params, paths : Paths):
 
-    iter_path = lambda i : join(p.basepath, f"stdep_iter_{i}") if i >= 0 else join(p.basepath, "stdep_iter_init")
+    iter_path = lambda i : join(paths.basepath, f"stdep_iter_{i}") if i >= 0 else join(paths.basepath, "stdep_iter_init")
     
     # Generate force constants from maximum frequency
     # These will seed the self-consistent iteration
     init_iter_path = iter_path(-1)
-    run_init_iteration(p, p.basepath, init_iter_path)
+    run_init_iteration(p, paths.basepath, init_iter_path)
 
     # Seed first iteration
     prepare_next_dir(init_iter_path, iter_path(0), True)
@@ -111,13 +111,13 @@ def run_stdep(p : sTDEP_Params):
             prepare_next_dir(ip, iter_path(i+1))
 
     # Make dir for final results
-    results_path = os.path.join(p.basepath, "RESULTS")
+    results_path = os.path.join(paths.basepath, "RESULTS")
     os.mkdir(results_path)
     # Copy final IFCs to root dir
     final_iter_path = iter_path(p.iters - 1)
     shutil.copyfile(join(final_iter_path, "outfile.forceconstant"),
                     join(results_path, "infile.forceconstant"))
-    shutil.copyfile(join(p.basepath, "infile.ucposcar"),
+    shutil.copyfile(join(paths.basepath, "infile.ucposcar"),
                     join(results_path, "infile.ucposcar"))
 
     # Plot final DOS and Dispersion
@@ -133,7 +133,7 @@ def run_stdep(p : sTDEP_Params):
     # Using Last Dataset fit third, fourth order IFCs????
 
     # Make dir for convergence studies
-    conv_path = os.path.join(p.basepath, "CONVERGENCE")
+    conv_path = os.path.join(paths.basepath, "CONVERGENCE")
     os.mkdir(conv_path)
     # Make DOS convergence plot
     # Make R^2 convergence plot

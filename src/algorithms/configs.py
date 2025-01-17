@@ -2,13 +2,21 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 from ..util import PathLike
 
+
+@dataclass
+class Paths:
+    basepath : PathLike
+    ucposcar_path : PathLike
+    ssposcar_path : PathLike
+    # lammps_script : Optional[PathLike] = None
+    # lammps_structure_path : Optional[PathLike] = None
+
 @dataclass
 class sTDEP_Params:
     iters : int
     n_configs : int
     temperature : float
     mode : str
-    basepath : PathLike 
     maximum_frequency : float
     r_cut2 : float
     ncores : int = 1
@@ -28,7 +36,6 @@ class LammpsDynamicsSettings:
 
 @dataclass
 class InterpolateIFCParams:
-    basepath : PathLike
     temps_to_calculate : List[float]
     temps_to_interpolate : List[float]
     rc2 : float

@@ -11,7 +11,7 @@ from src import (
     write_tdep_meta
 )
 
-from .configs import InterpolateIFCParams
+from .configs import InterpolateIFCParams, Paths
 
 def run_lammps(p, T, base_infile_path, sim_root_dir):
     N_steps = p.lds.n_configs * p.lds.data_interval
@@ -40,7 +40,7 @@ def write_temps_file(out_dir, temps_to_calculate, mean_sim_temps):
             f.write(f"{T} ")
         f.write("\n")
 
-def run_interpolate_irred(p : InterpolateIFCParams):
+def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
 
     # Check that interp temps are not actually extrapolating
     min_T_calc = np.amin(p.temps_to_calculate)
@@ -69,7 +69,7 @@ def run_interpolate_irred(p : InterpolateIFCParams):
 
     ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4)
 
-    sim_dir = join(p.basepath, "simulation_data")
+    sim_dir = join(paths.basepath, "simulation_data")
     os.mkdir(sim_dir)
 
     mean_sim_temps = []
@@ -82,9 +82,9 @@ def run_interpolate_irred(p : InterpolateIFCParams):
         os.mkdir(sim_root_dir)
 
         # Move files needed for extract IFCs
-        shutil.copyfile(join(p.basepath, "infile.ucposcar"), 
+        shutil.copyfile(paths.ucposcar_path, 
                         join(sim_root_dir, "infile.ucposcar"))
-        shutil.copyfile(join(p.basepath, "infile.ssposcar"), 
+        shutil.copyfile(paths.ssposcar_path, 
                         join(sim_root_dir, "infile.ssposcar"))
 
         if p.force_calc == "lammps":
@@ -117,7 +117,7 @@ def run_interpolate_irred(p : InterpolateIFCParams):
 
     # Save actual temps to see if our IFCs are accurate
     if p.force_calc == "lammps":       
-        write_temps_file(p.basepath, TEMPS_CALC, mean_sim_temps)
+        write_temps_file(paths.basepath, TEMPS_CALC, mean_sim_temps)
         logging.info("Using mean simulation temperatures for interpolation.")
 
     # Interpolate the irreducible IFCs
@@ -145,7 +145,7 @@ def run_interpolate_irred(p : InterpolateIFCParams):
     irred2_paths = []
     irred3_paths = [] if p.rc3 is not None else None
     irred4_paths = [] if p.rc4 is not None else None
-    irred_out_path = join(p.basepath, "INTERPOLATED_IRRED_IFCS")
+    irred_out_path = join(paths.basepath, "INTERPOLATED_IRRED_IFCS")
     os.mkdir(irred_out_path)
     for j, T in enumerate(TEMPS_INTERP):
         temp_str = f"{T}".replace('.', '_')
@@ -171,7 +171,7 @@ def run_interpolate_irred(p : InterpolateIFCParams):
     # THIS MUST BE THE SAME WHEN USING 
     # THE IRRED IFC CREATED HERE
     ef_tmp = ExtractForceConstants(p.rc2, p.rc3, p.rc4, read_irreducible=True)
-    with open(join(p.basepath, "READ_IRRED_IFC_CMD.txt"), "w") as f:
+    with open(join(paths.basepath, "READ_IRRED_IFC_CMD.txt"), "w") as f:
         f.write("""
                 # YOU MUST USE THIS COMMAND WHEN USING THE INTERPOLATED IFCS.\n
                 # THE PARAMS MUST MATCH THOSE USED TO CREATE THE INTERPOLATION POINTS.\n
@@ -182,7 +182,7 @@ def run_interpolate_irred(p : InterpolateIFCParams):
 
     if p.make_ss_ifcs:
         logging.info("Converting interpolated irreducible IFCs, back to super cell IFCs")
-        ss_out_dir = convert_irred_to_ss_ifc(p, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path)
+        ss_out_dir = convert_irred_to_ss_ifc(p, paths, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path)
         shutil.copyfile(join(irred_out_path, "interpolated_U0s.txt"), join(ss_out_dir, "interpolated_U0s.txt"))
 
     if p.cleanup:
@@ -191,9 +191,9 @@ def run_interpolate_irred(p : InterpolateIFCParams):
 
     return irred_out_path, ss_out_dir
     
-def convert_irred_to_ss_ifc(p : InterpolateIFCParams, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path):
+def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path):
     
-    ss_out_dir = join(p.basepath, "INTERPOLATED_SUPERCELL_IFCS")
+    ss_out_dir = join(paths.basepath, "INTERPOLATED_SUPERCELL_IFCS")
     os.mkdir(ss_out_dir)
 
     ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4, read_irreducible=True)
@@ -211,8 +211,8 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, TEMPS_INTERP, TEMPS_CALC, 
             shutil.copyfile(join(irred_out_path, f"infile.irrifc_fourthorder_{temp_str}"), join(sim_dir_T, "infile.irrifc_fourthorder"))
 
         # Move required files
-        shutil.copyfile(join(p.basepath, "infile.ucposcar"), join(sim_dir_T, "infile.ucposcar"))
-        shutil.copyfile(join(p.basepath, "infile.ssposcar"), join(sim_dir_T, "infile.ssposcar"))
+        shutil.copyfile(join(paths.basepath, "infile.ucposcar"), join(sim_dir_T, "infile.ucposcar"))
+        shutil.copyfile(join(paths.basepath, "infile.ssposcar"), join(sim_dir_T, "infile.ssposcar"))
 
         # forces, positions and stat file will not affect
         # IFC calculation but need to be valid. Just
