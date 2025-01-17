@@ -1,6 +1,6 @@
 from typing import List
 import logging
-import numpy as np
+import os
 
 from .tdep_cmd import TDEP_Command
 from src import PathLike
@@ -52,12 +52,18 @@ class AnharmonicFreeEnergy(TDEP_Command):
         return True
     
     # Parses the output in .log file NOT the actual output
-    def parse_bulk_F_from_log(self, path : PathLike):
-        data_out = []
-        with open(path, "r") as f:
+    def parse_bulk_F_from_log(self, run_dir : PathLike):
+        with open(os.path.join(run_dir, self.log_file), "r") as f:
             all_data = f.readlines() #usually only like 1-2 kB so fine to load it all
         
-        
+        fourth_order_free_energy_data = [float(L.strip().split()[-1]) for L in all_data[-8:]]
+        F_ph = fourth_order_free_energy_data[3]
+        F_3 = fourth_order_free_energy_data[4]
+        F_4 = fourth_order_free_energy_data[5]
+        cumulant_second_order = fourth_order_free_energy_data[6]
+        cumulant_third_order = fourth_order_free_energy_data[7]
+
+        return F_ph, F_3, F_4, cumulant_second_order, cumulant_third_order
 
 
     def _cmd(self) -> str:

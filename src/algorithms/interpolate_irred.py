@@ -173,10 +173,9 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     # THE IRRED IFC CREATED HERE
     ef_tmp = ExtractForceConstants(p.rc2, p.rc3, p.rc4, read_irreducible=True)
     with open(join(paths.basepath, "READ_IRRED_IFC_CMD.txt"), "w") as f:
-        f.write("""
-                # YOU MUST USE THIS COMMAND WHEN USING THE INTERPOLATED IFCS.\n
-                # THE PARAMS MUST MATCH THOSE USED TO CREATE THE INTERPOLATION POINTS.\n
-                # THE infile.ucposcar AND infile.ssposcar MUST ALSO BE IDENTICAL.\n"""
+        f.write("""# YOU MUST USE THIS COMMAND WHEN USING THE INTERPOLATED IFCS.
+                # THE PARAMS MUST MATCH THOSE USED TO CREATE THE INTERPOLATION POINTS.
+                # THE infile.ucposcar AND infile.ssposcar MUST ALSO BE IDENTICAL."""
                 )
         f.write(ef_tmp._cmd())
 

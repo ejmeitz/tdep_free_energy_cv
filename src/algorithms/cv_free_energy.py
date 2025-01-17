@@ -64,6 +64,18 @@ def run_dummy_lammps(T, structure_path, base_infile_path, sim_root_dir):
 
     return N_configs, N_atoms
 
+def init_out_arrs(N):
+    F_ph = np.zeros(N)
+    F_3 = np.zeros(N)
+    F_4 = np.zeros(N)
+    cum2 = np.zeros(N)
+    cum3 = np.zeros(N)
+    return F_ph, F_3, F_4, cum2, cum3
+
+# from TDEP F has units of eV/atom
+def cv_norm_from_F(F, coeffs, T, dT, kB = 8.61733262e-5):
+    return -T * np.sum(F*coeffs) / (3*dT*dT*kB)
+
 def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
 
 
@@ -90,13 +102,16 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
 
     # Get interpolated U0 values
     U0_interpolated = np.loadtxt(join(ss_out_dir, "interpolated_U0s.txt")) # (temp, U0)
+    U0_temps = U0_interpolated[:,0]
+    U0_interpolated = U0_interpolated[np.argsort(U0_temps)] # just make sure in order
 
     # Run free energy calculation on each of the interpolation points
     free_energy_dir = join(paths.basepath, "FREE_ENERGY_CALCS")
     os.mkdir(free_energy_dir)
 
+    F_ph, F_3, F_4, cum2, cum3 = init_out_arrs(p.fd_stencil_size)
     afe = AnharmonicFreeEnergy(p.k_mesh, quantum = p.quantum, stochastic = p.stochastic)
-    for T in temp_stencil:
+    for i,T in enumerate(np.sort(temp_stencil)):
         temp_str = f"{T}".replace('.', '_')
         free_energy_dir_T = join(free_energy_dir, f"T{temp_str}")
         os.mkdir(free_energy_dir_T)
@@ -126,12 +141,22 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
 
         afe.mpirun(p.n_cores, free_energy_dir_T)
 
+        F_ph[i], F_3[i], F_4[i], cum2[i], cum3[i] =\
+            afe.parse_bulk_F_from_log(free_energy_dir_T)
+
+    sgn = -1.0 if afe.stochastic else 1.0
+    F_total = U0_interpolated + F_ph + F_3 + F_4 + sgn*cum2 #+ cum3 # cum3 takes too long to converge to bother including
+
+    cv = cv_norm_from_F(F_total, coeffs, p.temperature, p.dT)
+    np.savetxt(join(paths.basepath, "heat_capacity.txt"), cv)
+
+
     # Each free energy run should produce which we can get mode heat capacities from:
     # - outfile.F_ph_mode_resolved
     # - outfile.delta_F3_mode_resolved
     # - outfile.delta_F4_mode_resolved
-    # Use the interpolated U0s to account for its affect on heat capacity
-    # Parse the bulk free energy from default TDEP and compare with my results
+
+    # Check convergence of U0 and cum2 somehow??
 
 
 
