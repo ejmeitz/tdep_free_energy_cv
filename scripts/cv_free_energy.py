@@ -8,7 +8,8 @@ from src import (
     Paths,
     HeatCapFreeEnergyParams,
     run_cv_free_energy,
-    InterpolateIFCParams
+    InterpolateIFCParams,
+    LammpsDynamicsSettings
 )
 
 def parse_arguments():
@@ -29,6 +30,11 @@ def main():
     params = HeatCapFreeEnergyParams(**cfg_data["HeatCapFreeEnergyParams"])
     if params.interp_settings is not None:
         params.interp_settings = InterpolateIFCParams(**params.interp_settings)
+    else:
+        raise ValueError("Expected key interp_settings in HeatCapFreeEnergyParams")
+
+    if params.interp_settings.lds is not None:
+        params.interp_settings.lds = LammpsDynamicsSettings(**params.interp_settings.lds)
 
     if not os.path.isdir(paths.basepath):
         raise RuntimeError("basepath is not a directory")

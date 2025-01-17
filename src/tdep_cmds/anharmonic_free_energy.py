@@ -1,7 +1,9 @@
 from typing import List
 import logging
+import numpy as np
 
 from .tdep_cmd import TDEP_Command
+from src import PathLike
 
 class AnharmonicFreeEnergy(TDEP_Command):
 
@@ -20,6 +22,7 @@ class AnharmonicFreeEnergy(TDEP_Command):
         self.third_order = third_order
         self.fourth_order = fourth_order
         self.stochastic = stochastic
+        self.dump_mode_values = dump_mode_values
         self.log_file = log_file
 
         if self.fourth_order and not self.third_order:
@@ -46,9 +49,16 @@ class AnharmonicFreeEnergy(TDEP_Command):
     def input_parameters_valid(self):
         if len(self.q_grid) != 3:
             raise RuntimeError("q_grid must be length 3")
-        if self.temperature <= 0:
-            raise RuntimeError("Temperature must be postive.")
         return True
+    
+    # Parses the output in .log file NOT the actual output
+    def parse_bulk_F_from_log(self, path : PathLike):
+        data_out = []
+        with open(path, "r") as f:
+            all_data = f.readlines() #usually only like 1-2 kB so fine to load it all
+        
+        
+
 
     def _cmd(self) -> str:
         cmd =  f"anharmonic_free_energy -qg {self.q_grid[0]} {self.q_grid[1]} {self.q_grid[2]}"

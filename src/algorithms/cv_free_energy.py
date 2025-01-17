@@ -73,23 +73,23 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
     check_params_consistent(p, temp_stencil)
     p.interp_settings.n_cores = p.n_cores
 
-    # Run interpolation, expects infile.ucposcar and infile.ssposcar in root dir
-    shutil.copyfile(paths.ucposrcar_path, join(p.lds.basepath, "infile.ucposcar"))
-    shutil.copyfile(paths.ssposcar_path, join(p.lds.basepath, "infile.ssposcar"))
-    run_interpolate_irred(p.interp_settings)
+    irred_out_path, ss_out_dir = run_interpolate_irred(p.interp_settings, paths)
 
     # Generate required input files at central temperature
     # these are just dummy files to we can call anharmonic_free_energy
-    md_dir = join(paths.basepath, "CENTRAL_TEMP_SIMULATION")
+    md_dir = join(paths.basepath, "DUMMY_SIMULATION")
     os.mkdir(md_dir)
     if p.force_calc == "lammps":
-        logging.info(f"Running LAMMPS at {T} K")
+        logging.info(f"Running LAMMPS at {p.temperature} K")
 
         file_path = os.path.dirname(os.path.realpath(__file__))
         base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.interp_settings.lds.script_name)
         base_infile_path = os.path.abspath(base_infile_path)
 
-        N_configs, N_atoms = run_dummy_lammps(p.interp_settings.lds.structure_path, T, base_infile_path, md_dir)
+        N_configs, N_atoms = run_dummy_lammps(p.temperature, p.interp_settings.lds.structure_path, base_infile_path, md_dir)
+
+    # Get interpolated U0 values
+    U0_interpolated = np.loadtxt(join(ss_out_dir, "interpolated_U0s.txt")) # (temp, U0)
 
     # Run free energy calculation on each of the interpolation points
     free_energy_dir = join(paths.basepath, "FREE_ENERGY_CALCS")
@@ -97,11 +97,12 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
 
     afe = AnharmonicFreeEnergy(p.k_mesh, quantum = p.quantum, stochastic = p.stochastic)
     for T in temp_stencil:
-        free_energy_dir_T = join(free_energy_dir, f"T{T}")
+        temp_str = f"{T}".replace('.', '_')
+        free_energy_dir_T = join(free_energy_dir, f"T{temp_str}")
         os.mkdir(free_energy_dir_T)
 
-        shutil.copyfile(p.interp_settings.ucposrcar_path, join(free_energy_dir_T, "infile.ucposcar"))
-        shutil.copyfile(p.interp_settings.ssposcar_path, join(free_energy_dir_T, "infile.ssposcar"))
+        shutil.copyfile(paths.ucposcar_path, join(free_energy_dir_T, "infile.ucposcar"))
+        shutil.copyfile(paths.ssposcar_path, join(free_energy_dir_T, "infile.ssposcar"))
 
         # Move MD simulation data to this dir
         # This will technically be at the wrong temperature.
@@ -114,6 +115,14 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
         # The infile.meta MUST have the correct temperature
         # as it is used to get phonon occupations occupations
         write_tdep_meta(free_energy_dir_T, N_atoms, N_configs, 1.0, T)
+
+        # Move force constants
+        shutil.copyfile(join(ss_out_dir, f"infile.forceconstant_{temp_str}"),
+                        join(free_energy_dir_T, "infile.forceconstant"))
+        shutil.copyfile(join(ss_out_dir, f"infile.forceconstant_thirdorder_{temp_str}"),
+                        join(free_energy_dir_T, "infile.forceconstant_thirdorder"))
+        shutil.copyfile(join(ss_out_dir, f"infile.forceconstant_fourthorder_{temp_str}"),
+                        join(free_energy_dir_T, "infile.forceconstant_fourthorder"))
 
         afe.mpirun(p.n_cores, free_energy_dir_T)
 

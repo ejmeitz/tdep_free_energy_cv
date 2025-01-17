@@ -27,7 +27,7 @@ def run_lammps(p, T, base_infile_path, sim_root_dir):
 
     # Parse thermodata.txt and get actual average temp
     temps = np.loadtxt(join(sim_root_dir, "thermo_data.txt"))[: , p.lds.thermo_data_temp_idx]
-    return np.mean(temps)
+    return np.mean(temps), N_atoms
 
 def write_temps_file(out_dir, temps_to_calculate, mean_sim_temps):
     with open(join(out_dir, "ACTUAL_SIM_TEMPS.txt"), "w") as f:
@@ -77,6 +77,7 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     irred3_ifcs = []
     irred4_ifcs = []
     U0s = []
+    N_atoms = None
     for i, T in enumerate(TEMPS_CALC):
         sim_root_dir = join(sim_dir, f"T{T}")
         os.mkdir(sim_root_dir)
@@ -89,7 +90,7 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
 
         if p.force_calc == "lammps":
             logging.info(f"Running LAMMPS at {T} K")
-            mean_sim_temp = run_lammps(p, T, base_infile_path, sim_root_dir)
+            mean_sim_temp, N_atoms = run_lammps(p, T, base_infile_path, sim_root_dir)
             mean_sim_temps.append(mean_sim_temp)
         else:
             raise NotImplementedError()
@@ -129,13 +130,13 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     if p.rc3 is not None:
         irred3_ifcs = np.array(irred3_ifcs)
         new_irred3_ifcs = np.zeros((irred3_ifcs.shape[1], len(TEMPS_INTERP)))
-        for i in range(irred2_ifcs.shape[1]):
+        for i in range(irred3_ifcs.shape[1]):
             new_irred3_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred3_ifcs[:,i])
 
     if p.rc4 is not None:
         irred4_ifcs = np.array(irred4_ifcs)
         new_irred4_ifcs = np.zeros((irred4_ifcs.shape[1], len(TEMPS_INTERP)))
-        for i in range(irred2_ifcs.shape[1]):
+        for i in range(irred4_ifcs.shape[1]):
             new_irred4_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred4_ifcs[:,i])
 
     if p.interpolate_U0:
@@ -182,7 +183,7 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
 
     if p.make_ss_ifcs:
         logging.info("Converting interpolated irreducible IFCs, back to super cell IFCs")
-        ss_out_dir = convert_irred_to_ss_ifc(p, paths, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path)
+        ss_out_dir = convert_irred_to_ss_ifc(p, paths, N_atoms, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path)
         shutil.copyfile(join(irred_out_path, "interpolated_U0s.txt"), join(ss_out_dir, "interpolated_U0s.txt"))
 
     if p.cleanup:
@@ -191,7 +192,8 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
 
     return irred_out_path, ss_out_dir
     
-def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path):
+def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, N_atoms :int,
+                             TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path):
     
     ss_out_dir = join(paths.basepath, "INTERPOLATED_SUPERCELL_IFCS")
     os.mkdir(ss_out_dir)
@@ -223,7 +225,7 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, TEMPS_INTER
         np.savetxt(join(sim_dir_T, "infile.stat"), np.zeros((p.lds.n_configs, 13)), fmt = stat_fmt) # this isnt even used, but still has to exist 
 
         # Write a new meta file cause we can
-        write_tdep_meta(sim_dir_T, p.lds.n_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
+        write_tdep_meta(sim_dir_T, N_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
 
         # Re-run extract force constants using the irreducible IFCs
         # This still needs infile.meta, infile.stat, infile.positions and infile.forces
@@ -231,12 +233,12 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, TEMPS_INTER
         ef.mpirun(p.n_cores, sim_dir_T)
 
         # Move force constants to make folder to avoid clean up 
-        shutil.copyfile(join(sim_dir_T, "outfile.forceconstant"), join(ss_out_dir, f"infile.forceconstant"))
+        shutil.copyfile(join(sim_dir_T, "outfile.forceconstant"), join(ss_out_dir, f"infile.forceconstant_{temp_str}"))
         
         if p.rc3 is not None:
-            shutil.copyfile(join(sim_dir_T, "outfile.forceconstant_thirdorder"), join(ss_out_dir, f"infile.forceconstant_thirdorder"))
+            shutil.copyfile(join(sim_dir_T, "outfile.forceconstant_thirdorder"), join(ss_out_dir, f"infile.forceconstant_thirdorder_{temp_str}"))
             
         if p.rc3 is not None:
-            shutil.copyfile(join(sim_dir_T, "outfile.forceconstant_thirdorder"), join(ss_out_dir, f"infile.forceconstant_thirdorder"))
+            shutil.copyfile(join(sim_dir_T, "outfile.forceconstant_fourthorder"), join(ss_out_dir, f"infile.forceconstant_fourthorder_{temp_str}"))
 
     return ss_out_dir

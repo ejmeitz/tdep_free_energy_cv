@@ -36,7 +36,7 @@ class LammpsDynamicsSettings:
 
 @dataclass
 class InterpolateIFCParams:
-    temps_to_calculate : List[float]
+    temps_to_calculate : List[float] #* RENAME temps_to_simulate
     temps_to_interpolate : List[float]
     rc2 : float
     rc3 : Optional[float] = None
