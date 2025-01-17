@@ -5,14 +5,16 @@ import numpy as np
 from os.path import join
 
 from src import (
-    HeatCapFreeEnergyParams,
+    # HeatCapFreeEnergyParams,
     AnharmonicFreeEnergy,
     write_tdep_meta,
     get_n_atoms_from_dump,
-    run_interpolate_irred,
     remove_dump_headers,
     LammpsSimulator
 )
+
+from .interpolate_irred import run_interpolate_irred
+from .configs import HeatCapFreeEnergyParams
 
 
 # Heat capacity is second derivative of free energy

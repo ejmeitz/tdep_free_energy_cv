@@ -4,7 +4,6 @@ from os.path import join
 
 from src import (
     PathLike,
-    sTDEP_Params,
     LammpsSimulator,
     CanonicalConfigs,
     ExtractForceConstants, 
@@ -12,6 +11,8 @@ from src import (
     write_tdep_meta,
     remove_dump_headers
 )
+
+from .configs import sTDEP_Params
 
 def run_init_iteration(p : sTDEP_Params, current_dir : PathLike, run_dir : PathLike):
 

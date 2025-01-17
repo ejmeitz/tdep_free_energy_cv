@@ -2,17 +2,16 @@ import numpy as np
 import logging
 import os, shutil
 from os.path import join
-from typing import List, Optional
-from dataclasses import dataclass, field
 
 from src import (
     ExtractForceConstants,
     LammpsSimulator,
-    InterpolateIFCParams,
     get_n_atoms_from_dump,
     remove_dump_headers,
     write_tdep_meta
 )
+
+from .configs import InterpolateIFCParams
 
 def run_lammps(p, T, base_infile_path, sim_root_dir):
     N_steps = p.lds.n_configs * p.lds.data_interval

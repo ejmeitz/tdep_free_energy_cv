@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
-from src import PathLike
+from ..util import PathLike
 
 @dataclass
 class sTDEP_Params:
