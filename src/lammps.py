@@ -163,8 +163,10 @@ class LammpsSimulator:
         shutil.copyfile(self.base_infile_path, self.new_infile_path)
 
         # Modify variables of in-file
+        required_keys.append("velocity_seed")
         self.infile = InFile(self.new_infile_path, required_keys)
         self.infile.edit_variables(edited_variables_dict)
+        self.infile.edit_variables({"velocity_seed", np.random.randint(1000,1000000)})
 
     def run(self, dir : PathLike) -> int:
         os.chdir(dir)
