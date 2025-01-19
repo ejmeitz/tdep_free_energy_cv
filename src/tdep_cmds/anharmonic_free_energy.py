@@ -56,12 +56,12 @@ class AnharmonicFreeEnergy(TDEP_Command):
         with open(os.path.join(run_dir, self.log_file), "r") as f:
             all_data = f.readlines() #usually only like 1-2 kB so fine to load it all
         
-        fourth_order_free_energy_data = [float(L.strip().split()[-1]) for L in all_data[-8:]]
-        F_ph = fourth_order_free_energy_data[3]
-        F_3 = fourth_order_free_energy_data[4]
-        F_4 = fourth_order_free_energy_data[5]
-        cumulant_second_order = fourth_order_free_energy_data[6]
-        cumulant_third_order = fourth_order_free_energy_data[7]
+        fourth_order_free_energy_data = [float(L.strip().split()[-1]) for L in all_data[-6:]]
+        F_ph = fourth_order_free_energy_data[1]
+        F_3 = fourth_order_free_energy_data[2]
+        F_4 = fourth_order_free_energy_data[3]
+        cumulant_second_order = fourth_order_free_energy_data[4]
+        cumulant_third_order = fourth_order_free_energy_data[5]
 
         return F_ph, F_3, F_4, cumulant_second_order, cumulant_third_order
 

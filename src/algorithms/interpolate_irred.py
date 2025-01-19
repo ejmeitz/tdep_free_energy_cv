@@ -166,7 +166,7 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     
     if p.interpolate_U0:
         np.savetxt(join(irred_out_path, "interpolated_U0s.txt"), np.column_stack([TEMPS_INTERP,interpolated_U0s]),
-                     fmt = "%.10f", header = "# Temperature U0")
+                     fmt = "%.12f", header = "# Temperature U0")
 
     # WRITE EXTRACT IFC COMMAND USED 
     # THIS MUST BE THE SAME WHEN USING 
