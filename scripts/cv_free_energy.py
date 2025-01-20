@@ -1,5 +1,6 @@
 import argparse
 import logging
+import numpy as np
 import os, shutil
 import yaml
 
@@ -11,21 +12,25 @@ from src import (
     initialize_free_energy, 
     run_interpolate_irred,
     InterpolateIFCParams,
-    LammpsDynamicsSettings
+    LammpsDynamicsSettings,
+    simulate_interp_node_data
 )
 
+desc = \
 """
 Calculates heat capacity from the second derivatve of free energy. Force constants are interpolated
 to each temperature on the finite difference stencil. By default the interpolation is done at each call
 but prior data can be used by setting `Paths.interp_data_path` to a directory with the output
 from interpolate_irred.
+
+Set ifc_path in the Paths configuration to use existing force constants as interpolation nodes. Expects
+format produces by ifc_from_MD command.
 """
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Parse sTDEP parameters.")
+    parser = argparse.ArgumentParser(description=desc)
 
-    parser.add_argument("--config", type=str, required=True, help="Yaml file containing configuration. See keys in \
-                            /algorithms/cv_free_energy HeatCapFreeEnergyParams. Must also contain ucposrcar_path and ssposcar_path.")
+    parser.add_argument("--config", type=str, required=True, help="Yaml file containing Paths and InterpolateIFCParams configuration.")
     return parser.parse_args()
 
 def main():
@@ -44,31 +49,37 @@ def main():
 
     if params.interp_settings.lds is not None:
         params.interp_settings.lds = LammpsDynamicsSettings(**params.interp_settings.lds)
+    else:
+        if paths.ifc_path is not None:
+            raise ValueError("No LAMMPS settings passed, expected ifc_path to be set in Paths section.")
 
     if not os.path.isdir(paths.basepath):
         raise RuntimeError("basepath is not a directory")
 
     os.chdir(paths.basepath)
 
-    setup_logging("sTDEP.log", paths.basepath)
+    setup_logging("cv_free_energy.log", paths.basepath)
     logging.info(f"CWD: {os.getcwd()}")
 
     # Move and rename usposcar and ssposcar
     shutil.copyfile(paths.ucposcar_path, os.path.join(paths.basepath, "infile.ucposcar"))
     shutil.copyfile(paths.ssposcar_path, os.path.join(paths.basepath, "infile.ssposcar"))
 
-    run_interpolate = paths.interp_data_path is None
+    run_interpolate = paths.ifc_path is None
     temp_stencil = initialize_free_energy(params, run_interpolate)
 
-    if run_interpolate:
-        _, ss_out_dir = run_interpolate_irred(params.interp_settings, paths)
+    # Run simulations at interpolation nodes if necessary
+    sim_dir = None; ifc_dir = None; mean_sim_temps = None
+    if paths.ifc_path is not None:
+        sim_dir, ifc_dir, mean_sim_temps = simulate_interp_node_data(params, paths)
     else:
-        # TODO Check if prior interpolation has the right inputs? 
-        # not bothered right now
-        logging.info("Using previous interpolation data at {paths.interp_data_path}")
-        logging.warning("ASSUMING INTERP WAS DONE WITH PROPER SETTINGS: rc3, rc4 > 0, make_ss_ifces = True, interpolate_U0 = True")
-
-        ss_out_dir = 
+        # Parse existing simulation data
+        sim_dir = os.path.join(paths.basepath, "simulation_data")
+        os.mkdir(sim_dir)
+        ifc_dir = paths.ifc_path
+        mean_sim_temps = np.loadtxt(os.path.join(paths.ifc_path, "..", "ACTUAL_SIM_TEMPS.txt"))
+    
+    _, ss_out_dir = run_interpolate_irred(params, paths, sim_dir, ifc_dir, mean_sim_temps)
 
 
     run_cv_free_energy(params, paths, temp_stencil, ss_out_dir)

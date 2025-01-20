@@ -25,7 +25,22 @@ def interpolate(mode, X_INTERP, X_DATA, Y_DATA):
     else:
         raise ValueError(f"Invalid interpolate mode : {mode}. Expected linear or lagrange.")
 
-def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
+def simulate_interp_node_data(p : InterpolateIFCParams, paths : Paths):
+    # Get force constants
+    if p.force_calc == "lammps":
+        # We will clean up manually at end, might need this sim data later
+        ifc_params = IFC_MD_Params(p.temps_to_simulate, p.n_cores_max, p.rc2, p.rc3, p.rc4, p.lds, False)
+        sim_dir, ifc_dir, mean_sim_temps = run_ifc_from_MD(ifc_params, paths)
+        logging.info("Using mean simulation temperatures for interpolation.")
+    elif p.force_calc == "vasp":
+        raise NotImplementedError("VASP force calculator not implemented yet")
+    else:
+        raise ValueError(f"Unknown force calculator, expected lammps or vasp, got : {p.force_calc}")
+    
+    return sim_dir, ifc_dir, mean_sim_temps
+
+def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths,
+                             sim_dir, ifc_dir, mean_sim_temps):
 
     # Check that interp temps are not actually extrapolating
     min_T_calc = np.amin(p.temps_to_simulate)
@@ -39,16 +54,6 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     TEMPS_SIM = np.sort(p.temps_to_simulate)
     TEMPS_INTERP = np.sort(p.temps_to_interpolate)
 
-    # Get force constants
-    if p.force_calc == "lammps":
-        # We will clean up manually at end, might need this sim data later
-        ifc_params = IFC_MD_Params(p.temps_to_simulate, p.n_cores_max, p.rc2, p.rc3, p.rc4, p.lds, False)
-        sim_dir, ifc_dir, mean_sim_temps = run_ifc_from_MD(ifc_params, paths)
-        logging.info("Using mean simulation temperatures for interpolation.")
-    elif p.force_calc == "vasp":
-        raise NotImplementedError("VASP force calculator not implemented yet")
-    else:
-        raise ValueError(f"Unknown force calculator, expected lammps or vasp, got : {p.force_calc}")
 
     # Parse irreducible force constants
     irred2_ifcs = []; irred3_ifcs = []; irred4_ifcs = []; U0s = []
@@ -164,15 +169,15 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, N_atoms :in
         shutil.copyfile(join(paths.basepath, "infile.ssposcar"), join(sim_dir_T, "infile.ssposcar"))
 
         # forces, positions and stat file will not affect
-        # IFC calculation but need to be valid. Just
-        # use the files from the first temp
-        shutil.copyfile(join(sim_dir, f"T{TEMPS_SIM[0]}", "infile.positions"), join(sim_dir_T, "infile.positions"))
-        shutil.copyfile(join(sim_dir, f"T{TEMPS_SIM[0]}", "infile.forces"), join(sim_dir_T, "infile.forces"))
+        # IFC calculation but need to be valid.
+        # Make some fake ones
+        # shutil.copyfile(join(sim_dir, f"T{TEMPS_SIM[0]}", "infile.positions"), join(sim_dir_T, "infile.positions"))
+        # shutil.copyfile(join(sim_dir, f"T{TEMPS_SIM[0]}", "infile.forces"), join(sim_dir_T, "infile.forces"))
+        np.savetxt(join(sim_dir_T, "infile.positions"), np.loadtxt(join(paths.basepath, "infile.ssposcar"), skiprows = 8))
+        np.savetxt(join(sim_dir_T, "infile.forces"), np.zeros(N_atoms, 3, fmt = "%.7f"))
         stat_fmt = ['%d', '%d'] + ['%.8f'] * 11
-        np.savetxt(join(sim_dir_T, "infile.stat"), np.zeros((p.lds.n_configs, 13)), fmt = stat_fmt) # this isnt even used, but still has to exist 
-
-        # Write a new meta file cause we can
-        write_tdep_meta(sim_dir_T, N_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
+        np.savetxt(join(sim_dir_T, "infile.stat"), np.zeros((1, 13)), fmt = stat_fmt) # this isnt even used, but still has to exist 
+        write_tdep_meta(sim_dir_T, N_atoms, 1, 1.0, T)
 
         # Re-run extract force constants using the irreducible IFCs
         # This still needs infile.meta, infile.stat, infile.positions and infile.forces

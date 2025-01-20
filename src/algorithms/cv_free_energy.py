@@ -77,16 +77,13 @@ def init_out_arrs(N):
 def cv_norm_from_F(F, coeffs, T, dT, kB = 8.61733262e-5):
     return -T * np.sum(F*coeffs) / (3*dT*dT*kB)
 
-def initialize_free_energy(p : HeatCapFreeEnergyParams, check_interp_settings):
+def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths, temp_stencil, ss_out_dir):
+
     coeffs, temp_offsets = get_fd_coeffs(p.fd_stencil_size)
     temp_stencil = p.temperature + np.array([to*p.dT for to in temp_offsets])
 
     check_params_consistent(p, temp_stencil)
     p.interp_settings.n_cores = p.n_cores
-
-    return temp_stencil
-
-def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths, temp_stencil, ss_out_dir):
 
     # Generate required input files at central temperature
     # these are just dummy files so we can call anharmonic_free_energy
@@ -152,11 +149,16 @@ def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths, temp_stencil,
     #sgn = -1.0 if afe.stochastic else 1.0
     F_total = U0_values + F_ph + F_3 + F_4 #+ sgn*cum2 #+ cum3 # cum3 takes too long to converge to bother including
 
-    cv = cv_norm_from_F(F_total, coeffs, p.temperature, p.dT)
-    np.savetxt(join(paths.basepath, "heat_capacity.txt"), [cv], fmt = "%.12f")
+    bulk_cv = cv_norm_from_F(F_total, coeffs, p.temperature, p.dT)
+    U0_deriv = cv_norm_from_F(U0_values, coeffs, p.temperature, p.dT)
+    F_ph_deriv = cv_norm_from_F(F_ph, coeffs, p.temperature, p.dT)
+    F3_deriv = cv_norm_from_F(F_3, coeffs, p.temperature, p.dT)
+    F4_deriv = cv_norm_from_F(F_4, coeffs, p.temperature, p.dT)
+    np.savetxt(join(paths.basepath, "heat_capacity.txt"), [p.temperature, U0_deriv, F_ph_deriv, F3_deriv, F4_deriv, bulk_cv], fmt = "%.10f",
+                header = "# Cv / N kB decomposition\n#Temperature U0_part F_ph_part F3_part F4_part Bulk_CV")
 
     np.savetxt(join(paths.basepath, "free_energies.txt"), np.column_stack([temps, U0_values, F_ph, F_3, F_4, F_total]),
-                header = "T U0 F_ph F_3 F_4 F_total", fmt = "%.12f")
+                header = "# T U0 F_ph F_3 F_4 F_total", fmt = "%.12f")
 
     # Each free energy run should produce which we can get mode heat capacities from:
     # - outfile.F_ph_mode_resolved
