@@ -36,7 +36,8 @@ def write_temps_file(out_dir, mean_sim_temps : dict):
 
     temps = np.sort(list(mean_sim_temps.keys()))
 
-    with open(join(out_dir, "ACTUAL_SIM_TEMPS.txt"), "w") as f:
+    actual_temps_path = join(out_dir, "ACTUAL_SIM_TEMPS.txt")
+    with open(actual_temps_path, "w") as f:
         f.write("# Requested Temperatures:\n")
         for T in temps:
             f.write(f"{T} ")
@@ -45,6 +46,8 @@ def write_temps_file(out_dir, mean_sim_temps : dict):
         for T in temps:
             f.write(f"{mean_sim_temps[T]} ")
         f.write("\n")
+
+    return actual_temps_path
 
 def work_unit(T, *, p, infile_path, sims_dir):
     temp_str = temp_to_str(T)
@@ -83,20 +86,33 @@ def run_ifc_from_MD(p : IFC_MD_Params, paths : Paths) -> None:
         if res != 0:
             logging.error(f"Possible error when extracting IFCs")
 
+        ifc_dir_T = join(ifc_dir, f"T{temp_str}")
+        os.mkdir(ifc_dir_T)
         # COPY IFCS to output dir
         shutil.copyfile(join(sim_root_dir, "outfile.forceconstant"),
-                        join(ifc_dir, f"infile.forceconstasnt_{temp_str}"))
+                        join(ifc_dir_T, f"infile.forceconstasnt"))
+        shutil.copyfile(join(sim_root_dir, "outfile.irrifc_secondorder"),
+                        join(ifc_dir_T, f"infile.irrifc_secondorder"))
         if p.rc3 is not None:
             shutil.copyfile(join(sim_root_dir, "outfile.forceconstant_thirdorder"),
-                        join(ifc_dir, f"infile.forceconstasnt_thirdorder_{temp_str}"))
+                        join(ifc_dir_T, f"infile.forceconstasnt_thirdorder"))
+            shutil.copyfile(join(sim_root_dir, "outfile.irrifc_thirdorder"),
+                        join(ifc_dir_T, f"infile.irrifc_thirdorder"))
         if p.rc4 is not None:
-            shutil.copyfile(join(sim_root_dir, "outfile.forceconstant_thirdorder"),
-                        join(ifc_dir, f"infile.forceconstasnt_thirdorder_{temp_str}"))
+            shutil.copyfile(join(sim_root_dir, "outfile.forceconstant_fourthorder"),
+                        join(ifc_dir_T, f"infile.forceconstasnt_fourthorder"))
+            shutil.copyfile(join(sim_root_dir, "outfile.irrifc_fourthorder"),
+                        join(ifc_dir_T, f"infile.irrifc_fourthorder"))
             
+        shutil.copyfile(join(sim_root_dir, ef.log_file), join(ifc_dir_T, ef.log_file))
+        shutil.copyfile(join(sim_root_dir, "outfile.U0"), join(ifc_dir_T, "outfile.U0"))
+                        
     if p.cleanup:
         os.chdir(p.basepath)
         os.system(f"rm -rf {sim_dir}")
+        sim_dir = None
 
-    write_temps_file(paths.basepath,  mean_sim_temps)
+    actual_temps_path = write_temps_file(paths.basepath,  mean_sim_temps)
 
-    return ifc_dir
+
+    return sim_dir, ifc_dir, mean_sim_temps

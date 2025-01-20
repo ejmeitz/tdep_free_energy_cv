@@ -18,32 +18,6 @@ from src import (
 
 from .configs import InterpolateIFCParams, Paths
 
-# def run_lammps(p, T, base_infile_path, sim_root_dir):
-#     N_steps = p.lds.n_configs * p.lds.data_interval
-#     var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.lds.structure_path}
-#     required_vars = ["T", "N_steps", "structure_path"]
-#     ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict, required_vars)
-
-#     ls.mpirun(sim_root_dir, p.lds.n_cores)
-#     N_atoms = get_n_atoms_from_dump(join(sim_root_dir, "dump.positions"))
-
-#     remove_dump_headers(sim_root_dir) # makes infile.positions, infile.stat, infile.forces
-#     write_tdep_meta(sim_root_dir, N_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
-
-#     # Parse thermodata.txt and get actual average temp
-#     temps = np.loadtxt(join(sim_root_dir, "thermo_data.txt"))[: , p.lds.thermo_data_temp_idx]
-#     return np.mean(temps), N_atoms
-
-# def write_temps_file(out_dir, temps_to_simulate, mean_sim_temps):
-#     with open(join(out_dir, "ACTUAL_SIM_TEMPS.txt"), "w") as f:
-#         f.write("# Requested Temperatures:\n")
-#         for T in temps_to_simulate:
-#             f.write(f"{T} ")
-#         f.write("\n")
-#         f.write("# Mean Simulation Temperatures:\n")
-#         for T in mean_sim_temps:
-#             f.write(f"{T} ")
-#         f.write("\n")
 
 def interpolate(mode, X_INTERP, X_DATA, Y_DATA):
 
@@ -66,71 +40,39 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     if max_T_interp > max_T_calc or min_T_interp < min_T_calc:
         raise ValueError("Temperatures passed require extrapolation, exiting.")
     
-    TEMPS_CALC = np.sort(p.temps_to_simulate)
+    TEMPS_SIM = np.sort(p.temps_to_simulate)
     TEMPS_INTERP = np.sort(p.temps_to_interpolate)
 
-    
-    # Pre-calc stuff needed for force calculators
+    # Get force constants
     if p.force_calc == "lammps":
-        ifc_params = IFC_MD_Params(p.temps_to_simulate, p.n_cores_max, p.rc2, p.rc3, p.rc4, p.lds, p.cleanup)
-        run_ifc_from_MD(ifc_params, paths)
+        # We will clean up manually at end, might need this sim data later
+        ifc_params = IFC_MD_Params(p.temps_to_simulate, p.n_cores_max, p.rc2, p.rc3, p.rc4, p.lds, False)
+        sim_dir, ifc_dir, mean_sim_temps = run_ifc_from_MD(ifc_params, paths)
+        logging.info("Using mean simulation temperatures for interpolation.")
     elif p.force_calc == "vasp":
         raise NotImplementedError("VASP force calculator not implemented yet")
     else:
         raise ValueError(f"Unknown force calculator, expected lammps or vasp, got : {p.force_calc}")
 
-    ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4)
-
-    sim_dir = join(paths.basepath, "simulation_data")
-    os.mkdir(sim_dir)
-
-    irred2_ifcs = []
-    irred3_ifcs = []
-    irred4_ifcs = []
-    U0s = []
+    # Parse irreducible force constants
+    irred2_ifcs = []; irred3_ifcs = []; irred4_ifcs = []; U0s = []
     N_atoms = None
-    for i, T in enumerate(TEMPS_CALC):
-        sim_root_dir = join(sim_dir, f"T{T}")
-        os.mkdir(sim_root_dir)
-
-        # Move files needed for extract IFCs
-        shutil.copyfile(paths.ucposcar_path, 
-                        join(sim_root_dir, "infile.ucposcar"))
-        shutil.copyfile(paths.ssposcar_path, 
-                        join(sim_root_dir, "infile.ssposcar"))
-
-        if p.force_calc == "lammps":
-            logging.info(f"Running LAMMPS at {T} K")
-            mean_sim_temp, N_atoms = run_lammps(p, T, base_infile_path, sim_root_dir)
-            mean_sim_temps.append(mean_sim_temp)
-        else:
-            raise NotImplementedError()
-
-        # Calculate force constants from lammps simulation
-        res = ef.mpirun(p.n_cores, sim_root_dir)
-        if res != 0:
-            logging.error(f"Possible error when extracting IFCs")
+    for i, T in enumerate(TEMPS_SIM):
+        temp_str = temp_to_str(T)
+        ifc_dir_T = join(ifc_dir, f"T{temp_str}")
 
         # Store irred ifcs
-        tmp = np.loadtxt(join(sim_root_dir, f"outfile.irrifc_secondorder"))
-        irred2_ifcs.append(tmp)
+        irred2_ifcs.append(np.loadtxt(join(ifc_dir_T, f"outfile.irrifc_secondorder")))
 
         if p.rc3 is not None:
-            tmp = np.loadtxt(join(sim_root_dir, f"outfile.irrifc_thirdorder"))
-            irred3_ifcs.append(tmp)
+            irred3_ifcs.append(tmp = np.loadtxt(join(ifc_dir_T, f"outfile.irrifc_thirdorder")))
         
         if p.rc4 is not None:
-            tmp = np.loadtxt(join(sim_root_dir, f"outfile.irrifc_fourthorder"))
-            irred4_ifcs.append(tmp)
+            irred4_ifcs.append(np.loadtxt(join(ifc_dir_T, f"outfile.irrifc_fourthorder")))
 
         if p.interpolate_U0:
-            tmp = np.loadtxt(join(sim_root_dir, "outfile.U0"))
+            tmp = np.loadtxt(join(ifc_dir_T, "outfile.U0"))
             U0s.append(tmp[-1])
-
-    # Save actual temps to see if our IFCs are accurate
-    if p.force_calc == "lammps":       
-        write_temps_file(paths.basepath, TEMPS_CALC, mean_sim_temps)
-        logging.info("Using mean simulation temperatures for interpolation.")
 
     # Interpolate the irreducible IFCs
     irred2_ifcs = np.array(irred2_ifcs)
@@ -151,7 +93,7 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
             new_irred4_ifcs[i,:] = interpolate(p.interp_mode, TEMPS_INTERP, mean_sim_temps, irred4_ifcs[:,i])
 
     if p.interpolate_U0:
-        interpolated_U0s = np.interp(TEMPS_INTERP, mean_sim_temps, U0s)
+        interpolated_U0s = interpolate(p.interp_mode, TEMPS_INTERP, mean_sim_temps, U0s)
 
     # Save interpolated IFCs per tempearture
     irred2_paths = []
@@ -192,17 +134,17 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
 
     if p.make_ss_ifcs:
         logging.info("Converting interpolated irreducible IFCs, back to super cell IFCs")
-        ss_out_dir = convert_irred_to_ss_ifc(p, paths, N_atoms, TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path)
+        ss_out_dir = convert_irred_to_ss_ifc(p, paths, N_atoms, TEMPS_INTERP, TEMPS_SIM, sim_dir, irred_out_path)
         shutil.copyfile(join(irred_out_path, "interpolated_U0s.txt"), join(ss_out_dir, "interpolated_U0s.txt"))
 
     if p.cleanup:
-        logging.info("Cleaning up...will delete simulation data.")
+        os.chdir(paths.basepath)
         os.system(f"rm -rf {sim_dir}")
 
     return irred_out_path, ss_out_dir
     
 def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, N_atoms :int,
-                             TEMPS_INTERP, TEMPS_CALC, sim_dir, irred_out_path):
+                             TEMPS_INTERP, TEMPS_SIM, sim_dir, irred_out_path):
     
     ss_out_dir = join(paths.basepath, "INTERPOLATED_SUPERCELL_IFCS")
     os.mkdir(ss_out_dir)
@@ -228,8 +170,8 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, N_atoms :in
         # forces, positions and stat file will not affect
         # IFC calculation but need to be valid. Just
         # use the files from the first temp
-        shutil.copyfile(join(sim_dir, f"T{TEMPS_CALC[0]}", "infile.positions"), join(sim_dir_T, "infile.positions"))
-        shutil.copyfile(join(sim_dir, f"T{TEMPS_CALC[0]}", "infile.forces"), join(sim_dir_T, "infile.forces"))
+        shutil.copyfile(join(sim_dir, f"T{TEMPS_SIM[0]}", "infile.positions"), join(sim_dir_T, "infile.positions"))
+        shutil.copyfile(join(sim_dir, f"T{TEMPS_SIM[0]}", "infile.forces"), join(sim_dir_T, "infile.forces"))
         stat_fmt = ['%d', '%d'] + ['%.8f'] * 11
         np.savetxt(join(sim_dir_T, "infile.stat"), np.zeros((p.lds.n_configs, 13)), fmt = stat_fmt) # this isnt even used, but still has to exist 
 
@@ -239,7 +181,7 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, N_atoms :in
         # Re-run extract force constants using the irreducible IFCs
         # This still needs infile.meta, infile.stat, infile.positions and infile.forces
         # to run although those will not be used for calculating the IFCs
-        ef.mpirun(p.n_cores, sim_dir_T)
+        ef.mpirun(p.n_cores_max, sim_dir_T)
 
         # Move force constants to make folder to avoid clean up 
         shutil.copyfile(join(sim_dir_T, "outfile.forceconstant"), join(ss_out_dir, f"infile.forceconstant_{temp_str}"))
