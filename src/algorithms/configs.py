@@ -9,14 +9,11 @@ class Paths:
     ucposcar_path : PathLike
     ssposcar_path : PathLike
     ifc_path : Optional[PathLike] = None
-    # lammps_script : Optional[PathLike] = None
-    # lammps_structure_path : Optional[PathLike] = None
-
 
 @dataclass
 class LammpsDynamicsSettings:
     time_step_fs : float 
-    script_name : str #(e.g., LJ_argon_dynamics.in)
+    infile_path : str #(e.g., /home/emeitz/LJ_argon_dynamics.in)
     structure_path : str #(e.g. /home/emeitz/initial_structure_LJ.data)
     n_cores : int = 4
     data_interval : int = 5000
@@ -26,13 +23,12 @@ class LammpsDynamicsSettings:
 @dataclass
 class IFC_MD_Params:
     temperatures : List[float]
-    n_cores_max : int # cores used by extract_ifc
-    n_cores_per_lammps : int # cores used for each lammps sim, will run n_cores_max / n_cores_per_lammps sims at a time
+    n_cores_max : int # total number of cores available
     r_cut2 : float
     r_cut3 : Optional[float] = None
     r_cut4 : Optional[float] = None
     lds : LammpsDynamicsSettings
-    cleanup : bool = True # deletes lammps dump files
+    cleanup : bool = True # deletes lammps simulations at end
     
 
 @dataclass
@@ -49,18 +45,19 @@ class sTDEP_Params:
 
 @dataclass
 class InterpolateIFCParams:
-    temps_to_calculate : List[float] #* RENAME temps_to_simulate
+    temps_to_simulate : List[float]
     temps_to_interpolate : List[float]
     rc2 : float
     rc3 : Optional[float] = None
     rc4 : Optional[float] = None
-    n_cores : int = 1
+    n_cores_per_sim : int # number of cores used per simulation when calculating forces
+    n_cores_max : int # total number of cores available
     interp_mode = "lagrange" #lagrange or linear
     interpolate_U0 : bool = True
     cleanup : bool = True
     force_calc : str = "lammps"
     make_ss_ifcs : bool = False # if irred are converted back to ifc for supercell
-    lds : LammpsDynamicsSettings = field(
+    lds : Optional[LammpsDynamicsSettings] = field(
         default_factory=LammpsDynamicsSettings
     )
     

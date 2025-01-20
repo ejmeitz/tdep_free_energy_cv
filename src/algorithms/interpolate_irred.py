@@ -7,6 +7,8 @@ from os.path import join
 
 from src import (
     ExtractForceConstants,
+    run_ifc_from_MD,
+    IFC_MD_Params,
     LammpsSimulator,
     get_n_atoms_from_dump,
     remove_dump_headers,
@@ -16,32 +18,32 @@ from src import (
 
 from .configs import InterpolateIFCParams, Paths
 
-def run_lammps(p, T, base_infile_path, sim_root_dir):
-    N_steps = p.lds.n_configs * p.lds.data_interval
-    var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.lds.structure_path}
-    required_vars = ["T", "N_steps", "structure_path"]
-    ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict, required_vars)
+# def run_lammps(p, T, base_infile_path, sim_root_dir):
+#     N_steps = p.lds.n_configs * p.lds.data_interval
+#     var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.lds.structure_path}
+#     required_vars = ["T", "N_steps", "structure_path"]
+#     ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict, required_vars)
 
-    ls.mpirun(sim_root_dir, p.lds.n_cores)
-    N_atoms = get_n_atoms_from_dump(join(sim_root_dir, "dump.positions"))
+#     ls.mpirun(sim_root_dir, p.lds.n_cores)
+#     N_atoms = get_n_atoms_from_dump(join(sim_root_dir, "dump.positions"))
 
-    remove_dump_headers(sim_root_dir) # makes infile.positions, infile.stat, infile.forces
-    write_tdep_meta(sim_root_dir, N_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
+#     remove_dump_headers(sim_root_dir) # makes infile.positions, infile.stat, infile.forces
+#     write_tdep_meta(sim_root_dir, N_atoms, p.lds.n_configs, p.lds.time_step_fs, T)
 
-    # Parse thermodata.txt and get actual average temp
-    temps = np.loadtxt(join(sim_root_dir, "thermo_data.txt"))[: , p.lds.thermo_data_temp_idx]
-    return np.mean(temps), N_atoms
+#     # Parse thermodata.txt and get actual average temp
+#     temps = np.loadtxt(join(sim_root_dir, "thermo_data.txt"))[: , p.lds.thermo_data_temp_idx]
+#     return np.mean(temps), N_atoms
 
-def write_temps_file(out_dir, temps_to_calculate, mean_sim_temps):
-    with open(join(out_dir, "ACTUAL_SIM_TEMPS.txt"), "w") as f:
-        f.write("# Requested Temperatures:\n")
-        for T in temps_to_calculate:
-            f.write(f"{T} ")
-        f.write("\n")
-        f.write("# Mean Simulation Temperatures:\n")
-        for T in mean_sim_temps:
-            f.write(f"{T} ")
-        f.write("\n")
+# def write_temps_file(out_dir, temps_to_simulate, mean_sim_temps):
+#     with open(join(out_dir, "ACTUAL_SIM_TEMPS.txt"), "w") as f:
+#         f.write("# Requested Temperatures:\n")
+#         for T in temps_to_simulate:
+#             f.write(f"{T} ")
+#         f.write("\n")
+#         f.write("# Mean Simulation Temperatures:\n")
+#         for T in mean_sim_temps:
+#             f.write(f"{T} ")
+#         f.write("\n")
 
 def interpolate(mode, X_INTERP, X_DATA, Y_DATA):
 
@@ -56,25 +58,22 @@ def interpolate(mode, X_INTERP, X_DATA, Y_DATA):
 def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
 
     # Check that interp temps are not actually extrapolating
-    min_T_calc = np.amin(p.temps_to_calculate)
-    max_T_calc = np.amax(p.temps_to_calculate)
+    min_T_calc = np.amin(p.temps_to_simulate)
+    max_T_calc = np.amax(p.temps_to_simulate)
     min_T_interp = np.amin(p.temps_to_interpolate)
     max_T_interp = np.amax(p.temps_to_interpolate)
 
     if max_T_interp > max_T_calc or min_T_interp < min_T_calc:
         raise ValueError("Temperatures passed require extrapolation, exiting.")
     
-    TEMPS_CALC = np.sort(p.temps_to_calculate)
+    TEMPS_CALC = np.sort(p.temps_to_simulate)
     TEMPS_INTERP = np.sort(p.temps_to_interpolate)
 
     
     # Pre-calc stuff needed for force calculators
     if p.force_calc == "lammps":
-        if p.lds is None:
-            raise ValueError("Force calculator set to lammps, must pass LammpsDynamicsSettings")
-        file_path = os.path.dirname(os.path.realpath(__file__))
-        base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.lds.script_name)
-        base_infile_path = os.path.abspath(base_infile_path)
+        ifc_params = IFC_MD_Params(p.temps_to_simulate, p.n_cores_max, p.rc2, p.rc3, p.rc4, p.lds, p.cleanup)
+        run_ifc_from_MD(ifc_params, paths)
     elif p.force_calc == "vasp":
         raise NotImplementedError("VASP force calculator not implemented yet")
     else:
@@ -85,7 +84,6 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     sim_dir = join(paths.basepath, "simulation_data")
     os.mkdir(sim_dir)
 
-    mean_sim_temps = []
     irred2_ifcs = []
     irred3_ifcs = []
     irred4_ifcs = []

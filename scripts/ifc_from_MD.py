@@ -48,6 +48,12 @@ def main():
     shutil.copyfile(paths.ucposcar_path, os.path.join(paths.basepath, "infile.ucposcar"))
     shutil.copyfile(paths.ssposcar_path, os.path.join(paths.basepath, "infile.ssposcar"))
 
+    # Move some other files to imrpove repeatability
+    script_name = os.path.basename(params.lds.infile_path)
+    shutil.copyfile(params.lds.infile_path, os.path.join(paths.basepath, script_name))
+    structure_name = os.path.basename(params.lds.structure_path)
+    shutil.copyfile(params.lds.infile_path, os.path.join(paths.basepath, structure_name))
+
     run_ifc_from_MD(params, paths)
 
 

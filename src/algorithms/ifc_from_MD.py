@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-import os
+import os, shutil
 from os.path import join
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
@@ -16,11 +16,11 @@ from src import (
 
 from .configs import IFC_MD_Params, Paths
 
-def run_lammps(p, T, base_infile_path, sim_root_dir):
+def run_lammps(p, T, infile_path, sim_root_dir):
     N_steps = p.lds.n_configs * p.lds.data_interval
     var_dict = {"T" : T, "N_steps" : N_steps, "structure_path" : p.lds.structure_path}
     required_vars = ["T", "N_steps", "structure_path"]
-    ls = LammpsSimulator(base_infile_path, sim_root_dir, var_dict, required_vars)
+    ls = LammpsSimulator(infile_path, sim_root_dir, var_dict, required_vars)
 
     ls.mpirun(sim_root_dir, p.lds.n_cores)
     N_atoms = get_n_atoms_from_dump(join(sim_root_dir, "dump.positions"))
@@ -46,25 +46,27 @@ def write_temps_file(out_dir, mean_sim_temps : dict):
             f.write(f"{mean_sim_temps[T]} ")
         f.write("\n")
 
-def work_unit(T, *, p, base_infile_path):
+def work_unit(T, *, p, infile_path, sims_dir):
     temp_str = temp_to_str(T)
-    sim_root_dir = join(p.basepath, f"T{temp_str}")
+    sim_root_dir = join(sims_dir, f"T{temp_str}")
     logging.info(f"Running LAMMPS at {T} K")
-    mean_sim_temp, N_atoms = run_lammps(p, T, base_infile_path, sim_root_dir)
+    mean_sim_temp, N_atoms = run_lammps(p, T, infile_path, sim_root_dir)
     return mean_sim_temp, T
 
 def run_ifc_from_MD(p : IFC_MD_Params, paths : Paths) -> None:
     
-    file_path = os.path.dirname(os.path.realpath(__file__))
-    base_infile_path = os.path.join(file_path, "..", "..", "data", "lammps_scripts", p.lds.script_name)
-    base_infile_path = os.path.abspath(base_infile_path)
+    sim_dir = join(paths.basepath, "simulation_data")
+    os.mkdir(sim_dir)
+
+    ifc_dir = join(paths.basepath, "IFCs")
+    os.mkdir(ifc_dir)
 
     mean_sim_temps = {}
     ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4)
 
     # Run LAMMPS first in parallel
-    max_lammps_procs = int(np.foor(p.n_cores_max / p.n_cores_per_lammps))
-    work = partial(work_unit, p = p, base_infile_path = base_infile_path)
+    max_lammps_procs = int(np.foor(p.n_cores_max / p.lds.n_cores))
+    work = partial(work_unit, p = p, infile_path = p.lds.infile_path, sims_dir = sim_dir)
     with ProcessPoolExecutor(max_workers = max_lammps_procs) as exec:
         futures = [exec.submit(work, T) for T in p.temperatures]
 
@@ -81,8 +83,20 @@ def run_ifc_from_MD(p : IFC_MD_Params, paths : Paths) -> None:
         if res != 0:
             logging.error(f"Possible error when extracting IFCs")
 
-        if p.cleanup:
-            os.chdir(sim_root_dir)
-            os.system("rm -rf dump.*")
+        # COPY IFCS to output dir
+        shutil.copyfile(join(sim_root_dir, "outfile.forceconstant"),
+                        join(ifc_dir, f"infile.forceconstasnt_{temp_str}"))
+        if p.rc3 is not None:
+            shutil.copyfile(join(sim_root_dir, "outfile.forceconstant_thirdorder"),
+                        join(ifc_dir, f"infile.forceconstasnt_thirdorder_{temp_str}"))
+        if p.rc4 is not None:
+            shutil.copyfile(join(sim_root_dir, "outfile.forceconstant_thirdorder"),
+                        join(ifc_dir, f"infile.forceconstasnt_thirdorder_{temp_str}"))
+            
+    if p.cleanup:
+        os.chdir(p.basepath)
+        os.system(f"rm -rf {sim_dir}")
 
     write_temps_file(paths.basepath,  mean_sim_temps)
+
+    return ifc_dir
