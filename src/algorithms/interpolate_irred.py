@@ -7,16 +7,12 @@ from os.path import join
 
 from src import (
     ExtractForceConstants,
-    run_ifc_from_MD,
-    IFC_MD_Params,
-    LammpsSimulator,
-    get_n_atoms_from_dump,
-    remove_dump_headers,
     write_tdep_meta,
     temp_to_str
 )
 
-from .configs import InterpolateIFCParams, Paths
+from .ifc_from_MD import run_ifc_from_MD
+from .configs import InterpolateIFCParams, IFC_MD_Params, Paths
 
 
 def interpolate(mode, X_INTERP, X_DATA, Y_DATA):

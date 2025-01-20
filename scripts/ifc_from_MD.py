@@ -11,6 +11,7 @@ from src import (
     IFC_MD_Params
 )
 
+
 """
 Calculates force constants at a pre-determined set of temperatures. Automatically runs LAMMPS
 to generate configurations.
@@ -31,8 +32,8 @@ def main():
     paths = Paths(**cfg_data["Paths"])
     params = IFC_MD_Params(**cfg_data["IFC_MD_Params"])
 
-    if params.interp_settings.lds is not None:
-        params.interp_settings.lds = LammpsDynamicsSettings(**params.interp_settings.lds)
+    if params.lds is not None:
+        params.lds = LammpsDynamicsSettings(**params.lds)
     else:
         raise ValueError("Expected key lds in IFC_MD_Params")
 

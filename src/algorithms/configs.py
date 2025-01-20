@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
+import os
 from ..util import PathLike
 
 
@@ -15,7 +16,7 @@ class LammpsDynamicsSettings:
     time_step_fs : float 
     infile_path : str #(e.g., /home/emeitz/LJ_argon_dynamics.in)
     structure_path : str #(e.g. /home/emeitz/initial_structure_LJ.data)
-    n_cores : int = 4
+    n_cores : int = 4 # cores per MD simulation
     data_interval : int = 5000
     n_configs : int = 500
     thermo_data_temp_idx : int = 1
@@ -24,10 +25,10 @@ class LammpsDynamicsSettings:
 class IFC_MD_Params:
     temperatures : List[float]
     n_cores_max : int # total number of cores available
-    r_cut2 : float
-    r_cut3 : Optional[float] = None
-    r_cut4 : Optional[float] = None
     lds : LammpsDynamicsSettings
+    rc2 : float
+    rc3 : Optional[float] = None
+    rc4 : Optional[float] = None
     cleanup : bool = True # deletes lammps simulations at end
     
 
@@ -38,7 +39,7 @@ class sTDEP_Params:
     temperature : float
     mode : str
     maximum_frequency : float
-    r_cut2 : float
+    rc2 : float
     n_cores : int = 1
     force_calc : str = "lammps"
     lammps_base_script : Optional[str] = None #(e.g. LJ_argon_snapshots.in)
@@ -47,11 +48,11 @@ class sTDEP_Params:
 class InterpolateIFCParams:
     temps_to_simulate : List[float]
     temps_to_interpolate : List[float]
+    n_cores_per_sim : int # number of cores used per simulation when calculating forces
+    n_cores_max : int # total number of cores available
     rc2 : float
     rc3 : Optional[float] = None
     rc4 : Optional[float] = None
-    n_cores_per_sim : int # number of cores used per simulation when calculating forces
-    n_cores_max : int # total number of cores available
     interp_mode = "lagrange" #lagrange or linear
     interpolate_U0 : bool = True
     cleanup : bool = True

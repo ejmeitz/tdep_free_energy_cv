@@ -52,6 +52,7 @@ def write_temps_file(out_dir, mean_sim_temps : dict):
 def work_unit(T, *, p, infile_path, sims_dir):
     temp_str = temp_to_str(T)
     sim_root_dir = join(sims_dir, f"T{temp_str}")
+    os.mkdir(sim_root_dir)
     logging.info(f"Running LAMMPS at {T} K")
     mean_sim_temp, N_atoms = run_lammps(p, T, infile_path, sim_root_dir)
     return mean_sim_temp, T
@@ -68,7 +69,7 @@ def run_ifc_from_MD(p : IFC_MD_Params, paths : Paths) -> None:
     ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4)
 
     # Run LAMMPS first in parallel
-    max_lammps_procs = int(np.foor(p.n_cores_max / p.lds.n_cores))
+    max_lammps_procs = int(np.floor(p.n_cores_max / p.lds.n_cores))
     work = partial(work_unit, p = p, infile_path = p.lds.infile_path, sims_dir = sim_dir)
     with ProcessPoolExecutor(max_workers = max_lammps_procs) as exec:
         futures = [exec.submit(work, T) for T in p.temperatures]
@@ -81,38 +82,42 @@ def run_ifc_from_MD(p : IFC_MD_Params, paths : Paths) -> None:
     # Go back into each dir and extract IFCs
     for T in p.temperatures:
         temp_str = temp_to_str(T)
-        sim_root_dir = join(p.basepath, f"T{temp_str}")
-        res = ef.mpirun(p.n_cores_max, sim_root_dir)
+        sim_root_dir_T = join(sim_dir, f"T{temp_str}")
+
+        shutil.copyfile(join(paths.basepath, "infile.ucposcar"), join(sim_root_dir_T, "infile.ucposcar"))
+        shutil.copyfile(join(paths.basepath, "infile.ssposcar"), join(sim_root_dir_T, "infile.ssposcar"))
+
+        res = ef.mpirun(p.n_cores_max, sim_root_dir_T)
         if res != 0:
             logging.error(f"Possible error when extracting IFCs")
 
         ifc_dir_T = join(ifc_dir, f"T{temp_str}")
         os.mkdir(ifc_dir_T)
         # COPY IFCS to output dir
-        shutil.copyfile(join(sim_root_dir, "outfile.forceconstant"),
+        shutil.copyfile(join(sim_root_dir_T, "outfile.forceconstant"),
                         join(ifc_dir_T, f"infile.forceconstasnt"))
-        shutil.copyfile(join(sim_root_dir, "outfile.irrifc_secondorder"),
+        shutil.copyfile(join(sim_root_dir_T, "outfile.irrifc_secondorder"),
                         join(ifc_dir_T, f"infile.irrifc_secondorder"))
         if p.rc3 is not None:
-            shutil.copyfile(join(sim_root_dir, "outfile.forceconstant_thirdorder"),
+            shutil.copyfile(join(sim_root_dir_T, "outfile.forceconstant_thirdorder"),
                         join(ifc_dir_T, f"infile.forceconstasnt_thirdorder"))
-            shutil.copyfile(join(sim_root_dir, "outfile.irrifc_thirdorder"),
+            shutil.copyfile(join(sim_root_dir_T, "outfile.irrifc_thirdorder"),
                         join(ifc_dir_T, f"infile.irrifc_thirdorder"))
         if p.rc4 is not None:
-            shutil.copyfile(join(sim_root_dir, "outfile.forceconstant_fourthorder"),
+            shutil.copyfile(join(sim_root_dir_T, "outfile.forceconstant_fourthorder"),
                         join(ifc_dir_T, f"infile.forceconstasnt_fourthorder"))
-            shutil.copyfile(join(sim_root_dir, "outfile.irrifc_fourthorder"),
+            shutil.copyfile(join(sim_root_dir_T, "outfile.irrifc_fourthorder"),
                         join(ifc_dir_T, f"infile.irrifc_fourthorder"))
             
-        shutil.copyfile(join(sim_root_dir, ef.log_file), join(ifc_dir_T, ef.log_file))
-        shutil.copyfile(join(sim_root_dir, "outfile.U0"), join(ifc_dir_T, "outfile.U0"))
+        shutil.copyfile(join(sim_root_dir_T, ef.log_file), join(ifc_dir_T, ef.log_file))
+        shutil.copyfile(join(sim_root_dir_T, "outfile.U0"), join(ifc_dir_T, "outfile.U0"))
                         
     if p.cleanup:
-        os.chdir(p.basepath)
+        os.chdir(paths.basepath)
         os.system(f"rm -rf {sim_dir}")
         sim_dir = None
 
-    actual_temps_path = write_temps_file(paths.basepath,  mean_sim_temps)
+    write_temps_file(paths.basepath,  mean_sim_temps)
 
 
     return sim_dir, ifc_dir, mean_sim_temps
