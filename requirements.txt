@@ -3,3 +3,4 @@ tqdm
 matplotlib
 h5py
 pyyaml
+scipy

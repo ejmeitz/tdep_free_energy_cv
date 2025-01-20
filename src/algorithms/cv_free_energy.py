@@ -28,24 +28,25 @@ def get_fd_coeffs(size):
     else:
         raise ValueError(f"Only support stencils of size 3,5,7 for second-order central diff. Got {size}")
 
-def check_params_consistent(p : HeatCapFreeEnergyParams, temp_stencil : List[float]) -> None:
+def check_params_consistent(p : HeatCapFreeEnergyParams, temp_stencil : List[float], check_interp_settings) -> None:
 
     if not set(temp_stencil).issubset(set(p.interp_settings.temps_to_interpolate)):
         raise ValueError("Interpolation settings inconsistent with FD stencil. Not all temps on stencil calculated by interpolation.")
 
-    if p.interp_settings.rc3 is None or p.interp_settings.rc4 is None:
-        raise ValueError("Missing anharmonic IFC cutoff, heat capacity calculation requires 2nd, 3rd and 4th order IFCs.")
-
-    if p.interp_settings.make_ss_ifcs == False:
-        logging.warning("Setting `make_ss_ifcs` to True in interp_settings. This is required for heat capacity calculation.")
-        p.interp_settings.make_ss_ifcs = True
-
-    if p.interp_settings.interpolate_U0 == False:
-        logging.wraning("Setting `interpolate_U0` to True in interp settings. This is required for heat capacity calculation.")
-        p.interp_settings.interpolate_U0 = True
-
     if p.n_cores == 1:
         logging.warning("Got 1 core. You should really parallelize the anharmonic free energy calculation...")
+
+    if check_interp_settings:
+        if p.interp_settings.rc3 is None or p.interp_settings.rc4 is None:
+            raise ValueError("Missing anharmonic IFC cutoff, heat capacity calculation requires 2nd, 3rd and 4th order IFCs.")
+
+        if p.interp_settings.make_ss_ifcs == False:
+            logging.warning("Setting `make_ss_ifcs` to True in interp_settings. This is required for heat capacity calculation.")
+            p.interp_settings.make_ss_ifcs = True
+
+        if p.interp_settings.interpolate_U0 == False:
+            logging.wraning("Setting `interpolate_U0` to True in interp settings. This is required for heat capacity calculation.")
+            p.interp_settings.interpolate_U0 = True
 
 def run_dummy_lammps(T, structure_path, base_infile_path, sim_root_dir):
     N_steps = 10_000 # just something small this data isnt used
@@ -76,19 +77,20 @@ def init_out_arrs(N):
 def cv_norm_from_F(F, coeffs, T, dT, kB = 8.61733262e-5):
     return -T * np.sum(F*coeffs) / (3*dT*dT*kB)
 
-def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths):
-
-
+def initialize_free_energy(p : HeatCapFreeEnergyParams, check_interp_settings):
     coeffs, temp_offsets = get_fd_coeffs(p.fd_stencil_size)
     temp_stencil = p.temperature + np.array([to*p.dT for to in temp_offsets])
 
     check_params_consistent(p, temp_stencil)
     p.interp_settings.n_cores = p.n_cores
 
-    irred_out_path, ss_out_dir = run_interpolate_irred(p.interp_settings, paths)
+    return temp_stencil
+
+def run_cv_free_energy(p : HeatCapFreeEnergyParams, paths : Paths, temp_stencil, ss_out_dir):
 
     # Generate required input files at central temperature
-    # these are just dummy files to we can call anharmonic_free_energy
+    # these are just dummy files so we can call anharmonic_free_energy
+    # Needed to get U0, but we got that from interpolation
     md_dir = join(paths.basepath, "DUMMY_SIMULATION")
     os.mkdir(md_dir)
     if p.force_calc == "lammps":

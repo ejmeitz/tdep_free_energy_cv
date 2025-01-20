@@ -1,0 +1,21 @@
+Paths:
+  basepath : "/home/emeitz/tests/TDEP_free_energy/interp_test/lib_test"
+  ucposcar_path : "/home/emeitz/scripts/TDEP/SW/infile.ucposcar2"
+  ssposcar_path : "/home/emeitz/scripts/TDEP/SW/infile.ssposcar"
+InterpolateIFCParams:
+  temps_to_calculate : [100,150,200]
+  temps_to_interpolate : []
+  rc2 : 4.0
+  rc3 : 4.0
+  rc4 : 4.0
+  n_cores : 40
+  make_ss_ifcs : True
+  force_calc : "lammps"
+  lds :
+      time_step_fs : 1.0 
+      script_name : "SW_silicon_dynamics.in"
+      structure_path : "/home/emeitz/scripts/TDEP/tdep_free_energy_cv/data/structures/SW/initial_structure_SW_3UC.data"
+      n_cores : 4
+      data_interval : 5000
+      n_configs : 500 # This determines convergence of U0, should be a bit higher than needed just for IFCs
+

@@ -23,3 +23,7 @@ def write_tdep_meta(out_dir : PathLike, N_atoms : int, N_samples : int, dt_fs : 
         f.write(f"{N_samples} # N samples\n")
         f.write(f"{dt_fs} # timestep in fs\n")
         f.write(f"{temperature} # temperature in K")
+
+
+def temp_to_str(T: float):
+    return f"{T}".replace('.', '_')

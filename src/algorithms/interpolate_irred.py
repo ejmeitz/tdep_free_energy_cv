@@ -1,4 +1,6 @@
 import numpy as np
+from numpy.polynomial.polynomial import Polynomial
+import scipy.interpolate as interp
 import logging
 import os, shutil
 from os.path import join
@@ -8,7 +10,8 @@ from src import (
     LammpsSimulator,
     get_n_atoms_from_dump,
     remove_dump_headers,
-    write_tdep_meta
+    write_tdep_meta,
+    temp_to_str
 )
 
 from .configs import InterpolateIFCParams, Paths
@@ -39,6 +42,16 @@ def write_temps_file(out_dir, temps_to_calculate, mean_sim_temps):
         for T in mean_sim_temps:
             f.write(f"{T} ")
         f.write("\n")
+
+def interpolate(mode, X_INTERP, X_DATA, Y_DATA):
+
+    if mode == "linear":
+        return np.interp(X_INTERP, X_DATA, Y_DATA)
+    elif mode == "lagrange":
+        poly = Polynomial(interp.lagrange(X_DATA, Y_DATA).coef[::-1])
+        return poly(X_INTERP)
+    else:
+        raise ValueError(f"Invalid interpolate mode : {mode}. Expected linear or lagrange.")
 
 def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
 
@@ -125,19 +138,19 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     irred2_ifcs = np.array(irred2_ifcs)
     new_irred2_ifcs = np.zeros((irred2_ifcs.shape[1], len(TEMPS_INTERP)))
     for i in range(irred2_ifcs.shape[1]):
-        new_irred2_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred2_ifcs[:,i])
+        new_irred2_ifcs[i,:] = interpolate(p.interp_mode, TEMPS_INTERP, mean_sim_temps, irred2_ifcs[:,i])
 
     if p.rc3 is not None:
         irred3_ifcs = np.array(irred3_ifcs)
         new_irred3_ifcs = np.zeros((irred3_ifcs.shape[1], len(TEMPS_INTERP)))
         for i in range(irred3_ifcs.shape[1]):
-            new_irred3_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred3_ifcs[:,i])
+            new_irred3_ifcs[i,:] = interpolate(p.interp_mode, TEMPS_INTERP, mean_sim_temps, irred3_ifcs[:,i])
 
     if p.rc4 is not None:
         irred4_ifcs = np.array(irred4_ifcs)
         new_irred4_ifcs = np.zeros((irred4_ifcs.shape[1], len(TEMPS_INTERP)))
         for i in range(irred4_ifcs.shape[1]):
-            new_irred4_ifcs[i,:] = np.interp(TEMPS_INTERP, mean_sim_temps, irred4_ifcs[:,i])
+            new_irred4_ifcs[i,:] = interpolate(p.interp_mode, TEMPS_INTERP, mean_sim_temps, irred4_ifcs[:,i])
 
     if p.interpolate_U0:
         interpolated_U0s = np.interp(TEMPS_INTERP, mean_sim_temps, U0s)
@@ -149,7 +162,7 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     irred_out_path = join(paths.basepath, "INTERPOLATED_IRRED_IFCS")
     os.mkdir(irred_out_path)
     for j, T in enumerate(TEMPS_INTERP):
-        temp_str = f"{T}".replace('.', '_')
+        temp_str = temp_to_str(T)
         p2 = join(irred_out_path, f"infile.irrifc_secondorder_{temp_str}")
         np.savetxt(p2, new_irred2_ifcs[:,j])
         irred2_paths.append(p2)
@@ -167,10 +180,9 @@ def run_interpolate_irred(p : InterpolateIFCParams, paths : Paths):
     if p.interpolate_U0:
         np.savetxt(join(irred_out_path, "interpolated_U0s.txt"), np.column_stack([TEMPS_INTERP,interpolated_U0s]),
                      fmt = "%.12f", header = "# Temperature U0")
+    #* TODO INTERPOLATE SECOND ORDER CUMULANT
 
-    # WRITE EXTRACT IFC COMMAND USED 
-    # THIS MUST BE THE SAME WHEN USING 
-    # THE IRRED IFC CREATED HERE
+    # Writes out command that must be used to get the same forcemap
     ef_tmp = ExtractForceConstants(p.rc2, p.rc3, p.rc4, read_irreducible=True)
     with open(join(paths.basepath, "READ_IRRED_IFC_CMD.txt"), "w") as f:
         f.write("""# YOU MUST USE THIS COMMAND WHEN USING THE INTERPOLATED IFCS.
@@ -199,7 +211,7 @@ def convert_irred_to_ss_ifc(p : InterpolateIFCParams, paths : Paths, N_atoms :in
 
     ef = ExtractForceConstants(p.rc2, p.rc3, p.rc4, read_irreducible=True)
     for T in TEMPS_INTERP:
-        temp_str = f"{T}".replace('.', '_')
+        temp_str = temp_to_str(T)
         sim_dir_T = join(sim_dir, f"T{temp_str}_SS_RECONSTRUCT")
         os.mkdir(sim_dir_T)
         os.chdir(sim_dir_T)
