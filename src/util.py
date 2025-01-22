@@ -26,4 +26,4 @@ def write_tdep_meta(out_dir : PathLike, N_atoms : int, N_samples : int, dt_fs : 
 
 
 def temp_to_str(T: float):
-    return f"{T}".replace('.', '_')
+    return f"{float(T)}".replace('.', '_')

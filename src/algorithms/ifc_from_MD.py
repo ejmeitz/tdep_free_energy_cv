@@ -111,6 +111,7 @@ def run_ifc_from_MD(p : IFC_MD_Params, paths : Paths) -> None:
             
         shutil.copyfile(join(sim_root_dir_T, ef.log_file), join(ifc_dir_T, ef.log_file))
         shutil.copyfile(join(sim_root_dir_T, "outfile.U0"), join(ifc_dir_T, "outfile.U0"))
+        shutil.copyfile(join(sim_root_dir_T, "outfile.energies"), join(ifc_dir_T, "outfile.energies"))
                         
     if p.cleanup:
         os.chdir(paths.basepath)

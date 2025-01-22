@@ -46,26 +46,24 @@ class sTDEP_Params:
 
 @dataclass
 class InterpolateIFCParams:
-    temps_to_simulate : List[float]
     temps_to_interpolate : List[float]
-    n_cores_per_sim : int # number of cores used per simulation when calculating forces
     n_cores_max : int # total number of cores available
     rc2 : float
     rc3 : Optional[float] = None
     rc4 : Optional[float] = None
-    interp_mode = "lagrange" #lagrange or linear
+    simulated_temps : Optional[List[float]] = None # only optional if ifc_path is set in Paths
+    n_cores_per_sim : int = 1 # number of cores used per simulation when calculating forces
+    interp_mode = "gpr" #gpr or cubic or linear
     interpolate_U0 : bool = True
     cleanup : bool = True
     force_calc : str = "lammps"
     make_ss_ifcs : bool = False # if irred are converted back to ifc for supercell
-    lds : Optional[LammpsDynamicsSettings] = field(
-        default_factory=LammpsDynamicsSettings
-    )
+    lds : Optional[LammpsDynamicsSettings] = None
     
 
 @dataclass
 class HeatCapFreeEnergyParams:
-    temperature : float
+    temperatures : List[float]
     dT : float
     k_mesh : List[int]
     interp_settings : InterpolateIFCParams = field(

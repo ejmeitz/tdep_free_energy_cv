@@ -9,7 +9,6 @@ from src import (
     Paths,
     HeatCapFreeEnergyParams,
     run_cv_free_energy,
-    initialize_free_energy, 
     run_interpolate_irred,
     InterpolateIFCParams,
     LammpsDynamicsSettings,
@@ -24,7 +23,8 @@ but prior data can be used by setting `Paths.interp_data_path` to a directory wi
 from interpolate_irred.
 
 Set ifc_path in the Paths configuration to use existing force constants as interpolation nodes. Expects
-format produces by ifc_from_MD command.
+format produced by ifc_from_MD command. You MUST use the same force constant cutoffs, same unit cell and same supercell
+as used when calcuating the origianl set of IFCs.
 """
 
 def parse_arguments():
@@ -50,8 +50,7 @@ def main():
     if params.interp_settings.lds is not None:
         params.interp_settings.lds = LammpsDynamicsSettings(**params.interp_settings.lds)
     else:
-        if paths.ifc_path is not None:
-            raise ValueError("No LAMMPS settings passed, expected ifc_path to be set in Paths section.")
+        raise ValueError("No LAMMPS settings passed. This is still needed even if IFCs are loaded from a prior calculation.")
 
     if not os.path.isdir(paths.basepath):
         raise RuntimeError("basepath is not a directory")
@@ -65,24 +64,26 @@ def main():
     shutil.copyfile(paths.ucposcar_path, os.path.join(paths.basepath, "infile.ucposcar"))
     shutil.copyfile(paths.ssposcar_path, os.path.join(paths.basepath, "infile.ssposcar"))
 
-    run_interpolate = paths.ifc_path is None
-    temp_stencil = initialize_free_energy(params, run_interpolate)
-
     # Run simulations at interpolation nodes if necessary
     sim_dir = None; ifc_dir = None; mean_sim_temps = None
-    if paths.ifc_path is not None:
-        sim_dir, ifc_dir, mean_sim_temps = simulate_interp_node_data(params, paths)
+    if paths.ifc_path is None:
+        logging.info("Running simulations to get interpolation nodes")
+        sim_dir, ifc_dir, mean_sim_temps = simulate_interp_node_data(params.interp_settings, paths)
     else:
         # Parse existing simulation data
+        logging.info("Using prior force constants. Will ignore temps_to_simulate. Ensure IFC cutoffs are identical though.")
         sim_dir = os.path.join(paths.basepath, "simulation_data")
         os.mkdir(sim_dir)
         ifc_dir = paths.ifc_path
-        mean_sim_temps = np.loadtxt(os.path.join(paths.ifc_path, "..", "ACTUAL_SIM_TEMPS.txt"))
-    
-    _, ss_out_dir = run_interpolate_irred(params, paths, sim_dir, ifc_dir, mean_sim_temps)
+
+        # Parse temperatures from prior simulation
+        temp_data = np.loadtxt(os.path.join(paths.ifc_path, "..", "ACTUAL_SIM_TEMPS.txt"))
+        mean_sim_temps = temp_data[0,:]
+        params.interp_settings.simulated_temps = temp_data[1,:]
+        logging.info(f"Found IFCs calculated at: {params.interp_settings.simulated_temps}")
 
 
-    run_cv_free_energy(params, paths, temp_stencil, ss_out_dir)
+    run_cv_free_energy(params, paths, sim_dir, ifc_dir, mean_sim_temps)
 
 if __name__ == "__main__":
     main()
