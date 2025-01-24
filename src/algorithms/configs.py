@@ -66,9 +66,7 @@ class HeatCapFreeEnergyParams:
     temperatures : List[float]
     dT : float
     k_mesh : List[int]
-    interp_settings : InterpolateIFCParams = field(
-        default_factory=InterpolateIFCParams
-    )
+    interp_settings : Optional[InterpolateIFCParams] = None
     n_cores : int = 1
     fd_stencil_size : int = 3
     quantum : bool = False # use Bose-Einstein or Classical Occupation

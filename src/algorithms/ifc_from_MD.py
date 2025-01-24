@@ -112,11 +112,13 @@ def run_ifc_from_MD(p : IFC_MD_Params, paths : Paths) -> None:
         shutil.copyfile(join(sim_root_dir_T, ef.log_file), join(ifc_dir_T, ef.log_file))
         shutil.copyfile(join(sim_root_dir_T, "outfile.U0"), join(ifc_dir_T, "outfile.U0"))
         shutil.copyfile(join(sim_root_dir_T, "outfile.energies"), join(ifc_dir_T, "outfile.energies"))
-                        
+
+    # Only deletes useless duplicate files
+    # TDEP infiles have the same info 
+    # and are useful later    
     if p.cleanup:
-        os.chdir(paths.basepath)
-        os.system(f"rm -rf {sim_dir}")
-        sim_dir = None
+        os.chdir(sim_dir)
+        os.system(f"rm -rf dump.*")
 
     write_temps_file(paths.basepath,  mean_sim_temps)
 

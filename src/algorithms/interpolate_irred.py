@@ -26,8 +26,8 @@ def interpolate(mode, X_INTERP, X_DATA, Y_DATA):
         cs = interp.CubicSpline(X_DATA, Y_DATA)
         return cs, cs(X_INTERP)
     elif mode == "gpr": # not really interpolation but whatever
-        k = ConstantKernel(1.0) * RBF(length_scale=0.1, length_scale_bounds=(1e-2, 1e4)) +\
-              WhiteKernel(1e-2, noise_level_bounds=(1e-7,1e3))
+        k = ConstantKernel(1.0) * RBF(length_scale=0.25, length_scale_bounds=(1e-2, 1e3)) +\
+              WhiteKernel(1e-2, noise_level_bounds=(1e-7,1e4))
         gpr = GaussianProcessRegressor(kernel = k, n_restarts_optimizer=9, normalize_y=True).fit(X_DATA.reshape(-1, 1), Y_DATA)
         return gpr.predict, gpr.predict(X_INTERP.reshape(-1, 1))
         
